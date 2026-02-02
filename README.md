@@ -1,15 +1,15 @@
-# Deepcode
+# Deepcoding
 
-Deepcode sidebar chat for OpenAI-compatible models.
+Deepcoding sidebar chat for OpenAI-compatible models.
 
 ## Usage
 
-- Open the Deepcode view in the Activity Bar.
+- Open the Deepcoding view in the Activity Bar.
 - Enter a prompt and click the send button.
 
 ## Configuration
 
-Create `~/.deepcode/settings.json` with:
+Create `~/.deepcoding/settings.json` with:
 
 ```json
 {

@@ -5,20 +5,20 @@ import * as os from "os";
 import OpenAI from "openai";
 import MarkdownIt from "markdown-it";
 
-type DeepcodeEnv = {
+type DeepcodingEnv = {
   MODEL?: string;
   BASE_URL?: string;
   API_KEY?: string;
 };
 
-type DeepcodeSettings = {
-  env?: DeepcodeEnv;
+type DeepcodingSettings = {
+  env?: DeepcodingEnv;
 };
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 
-class DeepcodeViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "deepcode.chatView";
+class DeepcodingViewProvider implements vscode.WebviewViewProvider {
+  public static readonly viewType = "deepcoding.chatView";
 
   private readonly context: vscode.ExtensionContext;
   private webviewView: vscode.WebviewView | undefined;
@@ -68,7 +68,7 @@ class DeepcodeViewProvider implements vscode.WebviewViewProvider {
       if (!client) {
         webview.postMessage({
           type: "assistant",
-          html: this.md.render("OpenAI API key not found. Please configure ~/.deepcode/settings.json.")
+          html: this.md.render("OpenAI API key not found. Please configure ~/.deepcoding/settings.json.")
         });
         return;
       }
@@ -113,18 +113,18 @@ class DeepcodeViewProvider implements vscode.WebviewViewProvider {
     return { client, model };
   }
 
-  private readSettings(): DeepcodeSettings | null {
+  private readSettings(): DeepcodingSettings | null {
     try {
-      const settingsPath = path.join(os.homedir(), ".deepcode", "settings.json");
+      const settingsPath = path.join(os.homedir(), ".deepcoding", "settings.json");
       if (!fs.existsSync(settingsPath)) {
         return null;
       }
 
       const raw = fs.readFileSync(settingsPath, "utf8");
-      return JSON.parse(raw) as DeepcodeSettings;
+      return JSON.parse(raw) as DeepcodingSettings;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(`Failed to read ~/.deepcode/settings.json: ${message}`);
+      vscode.window.showErrorMessage(`Failed to read ~/.deepcoding/settings.json: ${message}`);
       return null;
     }
   }
@@ -139,7 +139,7 @@ class DeepcodeViewProvider implements vscode.WebviewViewProvider {
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${csp} data:; style-src ${csp} 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deepcode</title>
+  <title>Deepcoding</title>
   <style>
     :root {
       --bg: #0f1222;
@@ -311,7 +311,7 @@ class DeepcodeViewProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
   <div class="app">
-    <div class="header">Deepcode</div>
+    <div class="header">Deepcoding</div>
     <div class="messages" id="messages"></div>
     <div class="loading" id="loading">
       <div class="spinner"></div>
@@ -387,9 +387,9 @@ class DeepcodeViewProvider implements vscode.WebviewViewProvider {
 }
 
 export function activate(context: vscode.ExtensionContext): void {
-  const provider = new DeepcodeViewProvider(context);
+  const provider = new DeepcodingViewProvider(context);
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(DeepcodeViewProvider.viewType, provider)
+    vscode.window.registerWebviewViewProvider(DeepcodingViewProvider.viewType, provider)
   );
 }
 

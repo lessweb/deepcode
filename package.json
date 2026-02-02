@@ -2,7 +2,7 @@
   "name": "deepcoding",
   "displayName": "Deepcoding",
   "description": "Deepcoding sidebar for OpenAI-compatible models",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "vegamo",
   "engines": {
     "vscode": "^1.85.0"
@@ -11,7 +11,9 @@
     "Other"
   ],
   "icon": "resources/deepcoding_icon.png",
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:deepcoding.chatView"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
