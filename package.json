@@ -1,35 +1,34 @@
 {
-  "name": "deepcode",
-  "displayName": "Deepcode",
-  "description": "Deepcode chat sidebar for OpenAI-compatible models",
+  "name": "deepcoding",
+  "displayName": "Deepcoding",
+  "description": "Deepcoding sidebar for OpenAI-compatible models",
   "version": "0.0.1",
-  "publisher": "deepcode",
+  "publisher": "vegamo",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
     "Other"
   ],
-  "icon": "resources/deepcode_icon.png",
-  "activationEvents": [
-    "onView:deepcode.chatView"
-  ],
+  "icon": "resources/deepcoding_icon.png",
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "deepcode",
-          "title": "Deepcode",
-          "icon": "resources/deepcode_icon.png"
+          "id": "deepcoding",
+          "title": "Deepcoding",
+          "icon": "resources/deepcoding_icon.png"
         }
       ]
     },
     "views": {
-      "deepcode": [
+      "deepcoding": [
         {
-          "id": "deepcode.chatView",
-          "name": "Deepcode",
+          "id": "deepcoding.chatView",
+          "name": "Deepcoding",
+          "icon": "resources/deepcoding_icon.png",
           "type": "webview"
         }
       ]
