@@ -1,0 +1,53 @@
+{
+  "name": "deepcode",
+  "displayName": "Deepcode",
+  "description": "Deepcode chat sidebar for OpenAI-compatible models",
+  "version": "0.0.1",
+  "publisher": "deepcode",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "icon": "resources/deepcode_icon.png",
+  "activationEvents": [
+    "onView:deepcode.chatView"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "deepcode",
+          "title": "Deepcode",
+          "icon": "resources/deepcode_icon.png"
+        }
+      ]
+    },
+    "views": {
+      "deepcode": [
+        {
+          "id": "deepcode.chatView",
+          "name": "Deepcode",
+          "type": "webview"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -w -p ./",
+    "vscode:prepublish": "npm run compile"
+  },
+  "dependencies": {
+    "markdown-it": "^14.1.0",
+    "openai": "^4.80.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/markdown-it": "^14.1.1",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.5"
+  }
+}

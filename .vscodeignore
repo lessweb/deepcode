@@ -1,0 +1,7 @@
+.vscode/**
+.git/**
+src/**
+**/*.ts
+**/*.map
+**/*.log
+
