@@ -2,7 +2,7 @@
   "name": "deepcoding",
   "displayName": "Deep Code",
   "description": "Deep Code for OpenAI-compatible models",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "vegamo",
   "engines": {
     "vscode": "^1.85.0"

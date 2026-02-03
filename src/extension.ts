@@ -4,6 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import OpenAI from "openai";
 import MarkdownIt from "markdown-it";
+import { SessionManager, type UserPromptContent } from "./session";
 
 type DeepcodingEnv = {
   MODEL?: string;
@@ -23,6 +24,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
   private readonly context: vscode.ExtensionContext;
   private webviewView: vscode.WebviewView | undefined;
   private readonly md: MarkdownIt;
+  private readonly sessionManager: SessionManager;
 
   constructor(context: vscode.ExtensionContext) {
     this.context = context;
@@ -30,6 +32,17 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       html: false,
       linkify: true,
       breaks: true
+    });
+    this.sessionManager = new SessionManager({
+      projectRoot: this.getWorkspaceRoot(),
+      createOpenAIClient: () => this.createOpenAIClient(),
+      renderMarkdown: (text) => this.md.render(text),
+      onAssistantMessage: (html) => {
+        if (!this.webviewView) {
+          return;
+        }
+        this.webviewView.webview.postMessage({ type: "assistant", html });
+      }
     });
   }
 
@@ -64,24 +77,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     webview.postMessage({ type: "loading", value: true });
 
     try {
-      const { client, model } = this.createOpenAIClient();
-      if (!client) {
-        webview.postMessage({
-          type: "assistant",
-          html: this.md.render("OpenAI API key not found. Please configure ~/.deepcode/settings.json.")
-        });
-        return;
-      }
-
-      const response = await client.chat.completions.create({
-        model,
-        messages: [{ role: "user", content: prompt }]
-      });
-
-      const content = response.choices?.[0]?.message?.content ?? "";
-      const html = this.md.render(content || "(empty response)");
-
-      webview.postMessage({ type: "assistant", html });
+      const userPrompt: UserPromptContent = { text: prompt };
+      await this.sessionManager.handleUserPrompt(userPrompt);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       webview.postMessage({
@@ -127,6 +124,14 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       vscode.window.showErrorMessage(`Failed to read ~/.deepcode/settings.json: ${message}`);
       return null;
     }
+  }
+
+  private getWorkspaceRoot(): string {
+    const workspace = vscode.workspace.workspaceFolders?.[0];
+    if (workspace) {
+      return workspace.uri.fsPath;
+    }
+    return process.cwd();
   }
 
   private getWebviewHtml(webview: vscode.Webview): string {

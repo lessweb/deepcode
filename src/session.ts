@@ -1,0 +1,423 @@
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+import * as crypto from "crypto";
+import type OpenAI from "openai";
+import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
+
+export type SessionStatus = "failed" | "pending" | "processing" | "completed" | "interrupted";
+
+export type SessionEntry = {
+  id: string;
+  summary: string | null;
+  assistantReply: string | null;
+  assistantThinking: string | null;
+  assistantRefusal: string | null;
+  toolCalls: unknown[] | null;
+  status: SessionStatus;
+  failReason: string | null;
+  usage: unknown | null;
+  createTime: string;
+  updateTime: string;
+};
+
+export type SessionsIndex = {
+  version: 1;
+  entries: SessionEntry[];
+  originalPath: string;
+};
+
+export type SessionMessageRole = "system" | "user" | "assistant" | "tool";
+
+export type SessionMessage = {
+  id: string;
+  sessionId: string;
+  role: SessionMessageRole;
+  content: string | null;
+  contentParams: unknown | null;
+  messageParams: unknown | null;
+  compacted: boolean;
+  visible: boolean;
+  createTime: string;
+  updateTime: string;
+};
+
+export type UserPromptContent = {
+  text?: string;
+  imageUrls?: string[];
+};
+
+type CreateOpenAIClient = () => { client: OpenAI | null; model: string };
+
+type SessionManagerOptions = {
+  projectRoot: string;
+  createOpenAIClient: CreateOpenAIClient;
+  renderMarkdown: (text: string) => string;
+  onAssistantMessage: (html: string) => void;
+};
+
+export class SessionManager {
+  private readonly projectRoot: string;
+  private readonly createOpenAIClient: CreateOpenAIClient;
+  private readonly renderMarkdown: (text: string) => string;
+  private readonly onAssistantMessage: (html: string) => void;
+  private activeSessionId: string | null = null;
+  private readonly sessionControllers = new Map<string, AbortController>();
+
+  constructor(options: SessionManagerOptions) {
+    this.projectRoot = options.projectRoot;
+    this.createOpenAIClient = options.createOpenAIClient;
+    this.renderMarkdown = options.renderMarkdown;
+    this.onAssistantMessage = options.onAssistantMessage;
+  }
+
+  getActiveSessionId(): string | null {
+    return this.activeSessionId;
+  }
+
+  async handleUserPrompt(userPrompt: UserPromptContent): Promise<void> {
+    if (!this.activeSessionId || !this.getSession(this.activeSessionId)) {
+      await this.createSession(userPrompt);
+    } else {
+      await this.replySession(this.activeSessionId, userPrompt);
+    }
+  }
+
+  async createSession(userPrompt: UserPromptContent): Promise<string> {
+    const sessionId = crypto.randomUUID();
+    const now = new Date().toISOString();
+    const index = this.loadSessionsIndex();
+    const entry: SessionEntry = {
+      id: sessionId,
+      summary: "Untitled",
+      assistantReply: null,
+      assistantThinking: null,
+      assistantRefusal: null,
+      toolCalls: null,
+      status: "pending",
+      failReason: null,
+      usage: null,
+      createTime: now,
+      updateTime: now
+    };
+    index.entries.push(entry);
+    this.saveSessionsIndex(index);
+
+    const userMessage = this.buildUserMessage(sessionId, userPrompt);
+    this.appendSessionMessage(sessionId, userMessage);
+
+    this.activeSessionId = sessionId;
+    await this.activateSession(sessionId);
+    return sessionId;
+  }
+
+  async replySession(sessionId: string, userPrompt: UserPromptContent): Promise<void> {
+    const now = new Date().toISOString();
+    const updated = this.updateSessionEntry(sessionId, (entry) => ({
+      ...entry,
+      status: "pending",
+      failReason: null,
+      updateTime: now
+    }));
+
+    if (!updated) {
+      await this.createSession(userPrompt);
+      return;
+    }
+
+    const userMessage = this.buildUserMessage(sessionId, userPrompt);
+    this.appendSessionMessage(sessionId, userMessage);
+    this.activeSessionId = sessionId;
+    await this.activateSession(sessionId);
+  }
+
+  async activateSession(sessionId: string): Promise<void> {
+    const { client, model } = this.createOpenAIClient();
+    const now = new Date().toISOString();
+
+    if (!client) {
+      this.updateSessionEntry(sessionId, (entry) => ({
+        ...entry,
+        status: "failed",
+        failReason: "OpenAI API key not found",
+        updateTime: now
+      }));
+      this.onAssistantMessage(
+        this.renderMarkdown("OpenAI API key not found. Please configure ~/.deepcode/settings.json.")
+      );
+      return;
+    }
+
+    this.updateSessionEntry(sessionId, (entry) => ({
+      ...entry,
+      status: "processing",
+      updateTime: now
+    }));
+
+    const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId));
+    const controller = new AbortController();
+    this.sessionControllers.set(sessionId, controller);
+
+    try {
+      const response = await client.chat.completions.create(
+        {
+          model,
+          messages
+        },
+        { signal: controller.signal }
+      );
+
+      const message = response.choices?.[0]?.message;
+      const content = message?.content ?? "";
+      const toolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
+      const thinking = (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? null;
+      const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
+      const html = this.renderMarkdown(content || "(empty response)");
+
+      const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls);
+      this.appendSessionMessage(sessionId, assistantMessage);
+
+      this.updateSessionEntry(sessionId, (entry) => ({
+        ...entry,
+        assistantReply: content,
+        assistantThinking: thinking,
+        assistantRefusal: refusal,
+        toolCalls,
+        usage: response.usage ?? null,
+        status: "completed",
+        updateTime: new Date().toISOString()
+      }));
+
+      this.onAssistantMessage(html);
+    } catch (error) {
+      const errMessage = error instanceof Error ? error.message : String(error);
+      const aborted = error instanceof Error && error.name === "AbortError";
+      this.updateSessionEntry(sessionId, (entry) => ({
+        ...entry,
+        status: aborted ? "interrupted" : "failed",
+        failReason: errMessage,
+        updateTime: new Date().toISOString()
+      }));
+
+      if (!aborted) {
+        this.onAssistantMessage(this.renderMarkdown(`Request failed: ${errMessage}`));
+      }
+    } finally {
+      this.sessionControllers.delete(sessionId);
+    }
+  }
+
+  interruptSession(sessionId: string): void {
+    const controller = this.sessionControllers.get(sessionId);
+    if (controller) {
+      controller.abort();
+      this.sessionControllers.delete(sessionId);
+    }
+
+    const now = new Date().toISOString();
+    this.updateSessionEntry(sessionId, (entry) => ({
+      ...entry,
+      status: "interrupted",
+      failReason: "interrupted",
+      updateTime: now
+    }));
+  }
+
+  listSessions(): SessionEntry[] {
+    const index = this.loadSessionsIndex();
+    return index.entries;
+  }
+
+  getSession(sessionId: string): SessionEntry | null {
+    const index = this.loadSessionsIndex();
+    return index.entries.find((entry) => entry.id === sessionId) ?? null;
+  }
+
+  listSessionMessages(sessionId: string): SessionMessage[] {
+    const messagePath = this.getSessionMessagesPath(sessionId);
+    if (!fs.existsSync(messagePath)) {
+      return [];
+    }
+
+    const raw = fs.readFileSync(messagePath, "utf8");
+    const lines = raw.split(/\r?\n/).filter((line) => line.trim().length > 0);
+    const messages: SessionMessage[] = [];
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line) as SessionMessage;
+        messages.push(parsed);
+      } catch {
+        // ignore malformed line
+      }
+    }
+    return messages;
+  }
+
+  private getProjectCode(projectRoot: string): string {
+    return projectRoot.replace(/[\\/]/g, "-").replace(/:/g, "");
+  }
+
+  private getProjectStorage(): {
+    projectCode: string;
+    projectDir: string;
+    sessionsIndexPath: string;
+  } {
+    const projectCode = this.getProjectCode(this.projectRoot);
+    const projectDir = path.join(os.homedir(), ".deepcode", "projects", projectCode);
+    const sessionsIndexPath = path.join(projectDir, "sessions-index.json");
+    return { projectCode, projectDir, sessionsIndexPath };
+  }
+
+  private ensureProjectDir(): string {
+    const { projectDir } = this.getProjectStorage();
+    fs.mkdirSync(projectDir, { recursive: true });
+    return projectDir;
+  }
+
+  private loadSessionsIndex(): SessionsIndex {
+    const { sessionsIndexPath } = this.getProjectStorage();
+    this.ensureProjectDir();
+
+    if (!fs.existsSync(sessionsIndexPath)) {
+      return { version: 1, entries: [], originalPath: this.projectRoot };
+    }
+
+    try {
+      const raw = fs.readFileSync(sessionsIndexPath, "utf8");
+      const parsed = JSON.parse(raw) as SessionsIndex;
+      const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
+      return {
+        version: 1,
+        entries,
+        originalPath: parsed.originalPath || this.projectRoot
+      };
+    } catch {
+      return { version: 1, entries: [], originalPath: this.projectRoot };
+    }
+  }
+
+  private saveSessionsIndex(index: SessionsIndex): void {
+    const { sessionsIndexPath } = this.getProjectStorage();
+    this.ensureProjectDir();
+    const normalized: SessionsIndex = {
+      version: 1,
+      entries: index.entries,
+      originalPath: this.projectRoot
+    };
+    fs.writeFileSync(sessionsIndexPath, JSON.stringify(normalized, null, 2), "utf8");
+  }
+
+  private getSessionMessagesPath(sessionId: string): string {
+    const { projectDir } = this.getProjectStorage();
+    return path.join(projectDir, `${sessionId}.jsonl`);
+  }
+
+  private appendSessionMessage(sessionId: string, message: SessionMessage): void {
+    this.ensureProjectDir();
+    const messagePath = this.getSessionMessagesPath(sessionId);
+    fs.appendFileSync(messagePath, `${JSON.stringify(message)}\n`, "utf8");
+  }
+
+  private updateSessionEntry(
+    sessionId: string,
+    updater: (entry: SessionEntry) => SessionEntry
+  ): SessionEntry | null {
+    const index = this.loadSessionsIndex();
+    const entryIndex = index.entries.findIndex((entry) => entry.id === sessionId);
+    if (entryIndex === -1) {
+      return null;
+    }
+
+    const updated = updater({ ...index.entries[entryIndex] });
+    index.entries[entryIndex] = updated;
+    this.saveSessionsIndex(index);
+    return updated;
+  }
+
+  private buildUserMessage(sessionId: string, prompt: UserPromptContent): SessionMessage {
+    const now = new Date().toISOString();
+    const imageParams =
+      prompt.imageUrls
+        ?.filter((url) => Boolean(url))
+        .map((url) => ({
+          type: "image_url",
+          image_url: { url }
+        })) ?? [];
+
+    return {
+      id: crypto.randomUUID(),
+      sessionId,
+      role: "user",
+      content: prompt.text ?? "",
+      contentParams: imageParams.length > 0 ? imageParams : null,
+      messageParams: null,
+      compacted: false,
+      visible: true,
+      createTime: now,
+      updateTime: now
+    };
+  }
+
+  private buildAssistantMessage(
+    sessionId: string,
+    content: string | null,
+    toolCalls: unknown[] | null
+  ): SessionMessage {
+    const now = new Date().toISOString();
+    const messageParams = toolCalls ? { tool_calls: toolCalls } : null;
+    return {
+      id: crypto.randomUUID(),
+      sessionId,
+      role: "assistant",
+      content,
+      contentParams: null,
+      messageParams,
+      compacted: false,
+      visible: true,
+      createTime: now,
+      updateTime: now
+    };
+  }
+
+  private buildOpenAIMessages(messages: SessionMessage[]): ChatCompletionMessageParam[] {
+    return messages
+      .filter((message) => message.visible)
+      .map((message) => {
+        const base: ChatCompletionMessageParam = {
+          role: message.role,
+          content: message.content ?? ""
+        } as ChatCompletionMessageParam;
+
+        const messageParams = message.messageParams as
+          | { tool_calls?: unknown[]; tool_call_id?: string }
+          | null
+          | undefined;
+        if (messageParams?.tool_calls) {
+          (base as { tool_calls?: unknown[] }).tool_calls = messageParams.tool_calls;
+        }
+        if (messageParams?.tool_call_id) {
+          (base as { tool_call_id?: string }).tool_call_id = messageParams.tool_call_id;
+        }
+
+        if (message.role === "user" && message.contentParams) {
+          const contentParts: ChatCompletionContentPart[] = [];
+          if (message.content) {
+            contentParts.push({ type: "text", text: message.content });
+          }
+          const params = Array.isArray(message.contentParams)
+            ? message.contentParams
+            : [message.contentParams];
+          for (const param of params) {
+            if (param && typeof param === "object") {
+              contentParts.push(param as ChatCompletionContentPart);
+            }
+          }
+          const contentValue: string | ChatCompletionContentPart[] =
+            contentParts.length > 0 ? contentParts : message.content ?? "";
+          (base as { content: string | ChatCompletionContentPart[] }).content = contentValue;
+        }
+
+        return base;
+      });
+  }
+}
