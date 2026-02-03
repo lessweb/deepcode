@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} data:; style-src {{cspSource}} 'unsafe-inline'; script-src 'nonce-{{nonce}}';">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep Code</title>
+  <style>
+    :root {
+      --bg: var(--vscode-editor-background);
+      --panel: var(--vscode-sideBar-background);
+      --panel-2: var(--vscode-editor-inactiveSelectionBackground);
+      --text: var(--vscode-list-hoverForeground);
+      --muted: var(--vscode-descriptionForeground);
+      --accent: var(--vscode-focusBorder);
+      --accent-2: var(--vscode-button-background);
+      --danger: var(--vscode-errorForeground);
+      --shadow: rgba(0, 0, 0, 0.2);
+      --border-color: var(--vscode-panel-border);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--vscode-font-family);
+      font-size: var(--vscode-font-size);
+    }
+
+    .app {
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      padding: 14px 16px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--muted);
+      background: var(--vscode-titleBar-activeBackground);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 16px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--vscode-sideBar-background);
+    }
+
+    .bubble {
+      padding: 12px 10px;
+      border-radius: 10px;
+      font-size: 14px;
+    }
+
+    .bubble.user {
+      align-self: flex-end;
+      background: color-mix(in srgb, var(--vscode-editor-inactiveSelectionBackground) 60%, transparent);
+      color: var(--text);
+    }
+
+    .bubble.assistant {
+      align-self: flex-start;
+      background: var(--panel-2);
+    }
+
+    .bubble.assistant pre {
+      padding: 10px;
+      border-radius: 10px;
+      overflow-x: auto;
+      color: var(--text);
+    }
+
+    .bubble.assistant code {
+      font-family: var(--vscode-editor-font-family);
+      font-size: 12px;
+    }
+
+    .composer {
+      padding: 12px 16px 16px;
+      background: var(--vscode-sideBar-background);
+      border-top: 1px solid var(--border-color);
+    }
+
+    .input-wrap {
+      position: relative;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 72px;
+      resize: vertical;
+      border-radius: 4px;
+      border: 1px solid var(--vscode-input-border);
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      padding: 10px 12px 28px 12px;
+      font-size: 13px;
+      line-height: 1.4;
+      outline: none;
+      font-family: var(--vscode-font-family);
+      resize: none;
+    }
+
+    textarea:focus {
+      border-color: var(--vscode-focusBorder);
+      outline: 1px solid var(--vscode-focusBorder);
+    }
+
+    textarea::placeholder {
+      color: var(--vscode-input-placeholderForeground);
+    }
+
+    .send-button {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      width: 22px;
+      height: 22px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      background: transparent;
+    }
+
+    .send-button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .send-icon {
+      width: 16px;
+      height: 16px;
+      fill: var(--text);
+      transition: opacity 0.2s;
+    }
+
+    .send-icon.empty {
+      opacity: 0.6;
+    }
+
+    .loading {
+      display: none;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      padding: 0 16px 10px;
+    }
+
+    .loading.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--vscode-progressBar-background);
+      border-top-color: var(--accent);
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">Deep Code</div>
+    <!-- VS Code 颜色参考 - 临时用于预览，使用后删除 -->
+    <!-- <div style="padding: 10px; display: flex; flex-wrap: wrap; gap: 8px; background: var(--vscode-editor-background);">
+      <div style="padding: 8px; background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">editor-background</div>
+      <div style="padding: 8px; background: var(--vscode-sideBar-background); color: var(--vscode-sideBar-foreground); border: 1px solid var(--vscode-panel-border);">sideBar-background</div>
+      <div style="padding: 8px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: 1px solid var(--vscode-panel-border);">button-background</div>
+      <div style="padding: 8px; background: var(--vscode-button-hoverBackground); color: var(--vscode-button-foreground); border: 1px solid var(--vscode-panel-border);">button-hoverBackground</div>
+      <div style="padding: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border);">input-background</div>
+      <div style="padding: 8px; background: var(--vscode-panel-background); color: var(--vscode-panel-foreground); border: 1px solid var(--vscode-panel-border);">panel-background</div>
+      <div style="padding: 8px; background: var(--vscode-titleBar-activeBackground); color: var(--vscode-titleBar-activeForeground); border: 1px solid var(--vscode-panel-border);">titleBar-activeBackground</div>
+      <div style="padding: 8px; background: var(--vscode-titleBar-inactiveBackground); color: var(--vscode-titleBar-inactiveForeground); border: 1px solid var(--vscode-panel-border);">titleBar-inactiveBackground</div>
+      <div style="padding: 8px; background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); border: 1px solid var(--vscode-panel-border);">list-activeSelectionBackground</div>
+      <div style="padding: 8px; background: var(--vscode-list-inactiveSelectionBackground); color: var(--vscode-list-inactiveSelectionForeground); border: 1px solid var(--vscode-panel-border);">list-inactiveSelectionBackground</div>
+      <div style="padding: 8px; background: var(--vscode-list-hoverBackground); color: var(--vscode-list-hoverForeground); border: 1px solid var(--vscode-panel-border);">list-hoverBackground</div>
+      <div style="padding: 8px; background: var(--vscode-list-focusBackground); color: var(--vscode-list-focusForeground); border: 1px solid var(--vscode-panel-border);">list-focusBackground</div>
+      <div style="padding: 8px; background: var(--vscode-editor-selectionBackground); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">editor-selectionBackground</div>
+      <div style="padding: 8px; background: var(--vscode-editor-inactiveSelectionBackground); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">editor-inactiveSelectionBackground</div>
+      <div style="padding: 8px; background: var(--vscode-textCodeBlock-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">textCodeBlock-background</div>
+      <div style="padding: 8px; background: var(--vscode-textBlockQuote-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">textBlockQuote-background</div>
+      <div style="padding: 8px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border: 1px solid var(--vscode-panel-border);">badge-background</div>
+      <div style="padding: 8px; background: var(--vscode-progressBar-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">progressBar-background</div>
+      <div style="padding: 8px; color: var(--vscode-focusBorder); border: 2px solid var(--vscode-focusBorder);">focusBorder</div>
+      <div style="padding: 8px; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border);">descriptionForeground</div>
+      <div style="padding: 8px; color: var(--vscode-errorForeground); border: 1px solid var(--vscode-panel-border);">errorForeground</div>
+      <div style="padding: 8px; color: var(--vscode-notificationsWarningIcon-foreground); border: 1px solid var(--vscode-panel-border);">warningForeground</div>
+      <div style="padding: 8px; background: var(--vscode-inputOption-activeBorder); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">inputOption-activeBorder</div>
+      <div style="padding: 8px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border);">dropdown-background</div>
+      <div style="padding: 8px; background: var(--vscode-menu-background); color: var(--vscode-menu-foreground); border: 1px solid var(--vscode-menu-border);">menu-background</div>
+      <div style="padding: 8px; background: var(--vscode-menu-selectionBackground); color: var(--vscode-menu-selectionForeground); border: 1px solid var(--vscode-panel-border);">menu-selectionBackground</div>
+      <div style="padding: 8px; background: var(--vscode-toolbar-hoverBackground); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">toolbar-hoverBackground</div>
+      <div style="padding: 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border);">editorWidget-background</div>
+      <div style="padding: 8px; background: var(--vscode-tab-activeBackground); color: var(--vscode-tab-activeForeground); border: 1px solid var(--vscode-panel-border);">tab-activeBackground</div>
+      <div style="padding: 8px; background: var(--vscode-tab-inactiveBackground); color: var(--vscode-tab-inactiveForeground); border: 1px solid var(--vscode-panel-border);">tab-inactiveBackground</div>
+      <div style="padding: 8px; background: var(--vscode-statusBar-background); color: var(--vscode-statusBar-foreground); border: 1px solid var(--vscode-panel-border);">statusBar-background</div>
+      <div style="padding: 8px; background: var(--vscode-activityBar-background); color: var(--vscode-activityBar-foreground); border: 1px solid var(--vscode-panel-border);">activityBar-background</div>
+      <div style="padding: 8px; background: var(--vscode-sideBarTitle-background); color: var(--vscode-sideBarTitle-foreground); border: 1px solid var(--vscode-panel-border);">sideBarTitle-background</div>
+      <div style="padding: 8px; background: var(--vscode-commandCenter-background); color: var(--vscode-commandCenter-foreground); border: 1px solid var(--vscode-panel-border);">commandCenter-background</div>
+      <div style="padding: 8px; color: var(--vscode-input-placeholderForeground); border: 1px solid var(--vscode-panel-border);">input-placeholderForeground</div>
+      <div style="padding: 8px; background: var(--vscode-inputValidation-infoBackground); color: var(--vscode-inputValidation-infoForeground); border: 1px solid var(--vscode-inputValidation-infoBorder);">inputValidation-infoBackground</div>
+      <div style="padding: 8px; background: var(--vscode-inputValidation-warningBackground); color: var(--vscode-inputValidation-warningForeground); border: 1px solid var(--vscode-inputValidation-warningBorder);">inputValidation-warningBackground</div>
+      <div style="padding: 8px; background: var(--vscode-inputValidation-errorBackground); color: var(--vscode-inputValidation-errorForeground); border: 1px solid var(--vscode-inputValidation-errorBorder);">inputValidation-errorBackground</div>
+    </div> -->
+    <!-- 颜色参考结束 -->
+    <div class="messages" id="messages"></div>
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <span>Thinking...</span>
+    </div>
+    <div class="composer">
+      <div class="input-wrap">
+        <textarea id="prompt" placeholder="Write a prompt..." rows="3"></textarea>
+        <button class="send-button" id="send" title="Send">
+          <svg class="send-icon" viewBox="0 0 1024 1024" aria-hidden="true">
+            <path d="M242.944 512L98.090667 139.605333c-10.069333-25.898667 15.189333-50.688 40.192-41.898666l3.968 1.706666 768 384a32 32 0 0 1 4.138666 54.741334l-4.138666 2.474666-768 384c-24.874667 12.416-51.925333-10.410667-45.44-36.138666l1.28-4.096L242.944 512 98.090667 139.605333 242.944 512zM187.818667 193.706667l111.36 286.293333h282.752a32 32 0 0 1 31.701333 27.648l0.298667 4.352a32 32 0 0 1-27.690667 31.701333l-4.309333 0.298667H299.093333l-111.317333 286.293333L824.405333 512 187.776 193.706667z" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script nonce="{{nonce}}">
+    const vscode = acquireVsCodeApi();
+    const messages = document.getElementById("messages");
+    const promptInput = document.getElementById("prompt");
+    const sendButton = document.getElementById("send");
+    const loading = document.getElementById("loading");
+
+    function addBubble(content, role) {
+      const bubble = document.createElement("div");
+      bubble.className = "bubble " + role;
+      if (role === "assistant") {
+        bubble.innerHTML = content;
+      } else {
+        bubble.textContent = content;
+      }
+      messages.appendChild(bubble);
+      messages.scrollTop = messages.scrollHeight;
+    }
+
+    function setLoading(isLoading) {
+      loading.classList.toggle("active", isLoading);
+      sendButton.disabled = isLoading;
+    }
+
+    function updateSendIconState() {
+      const hasContent = promptInput.value.trim().length > 0;
+      const icon = document.querySelector(".send-icon");
+      icon.classList.toggle("empty", !hasContent);
+    }
+
+    promptInput.addEventListener("input", updateSendIconState);
+    updateSendIconState();
+
+    function sendPrompt() {
+      const text = promptInput.value.trim();
+      if (!text || sendButton.disabled) {
+        return;
+      }
+
+      addBubble(text, "user");
+      promptInput.value = "";
+      vscode.postMessage({ type: "userPrompt", prompt: text });
+      updateSendIconState();
+    }
+
+    sendButton.addEventListener("click", sendPrompt);
+    promptInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        if (event.shiftKey) {
+          // Shift+回车：允许换行（默认行为）
+          return;
+        } else {
+          // 回车：发送消息
+          event.preventDefault();
+          sendPrompt();
+        }
+      }
+    });
+
+    window.addEventListener("message", (event) => {
+      const message = event.data;
+      if (message.type === "assistant") {
+        addBubble(message.html || "", "assistant");
+      } else if (message.type === "loading") {
+        setLoading(Boolean(message.value));
+      }
+    });
+  </script>
+</body>
+</html>
