@@ -68,7 +68,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       if (!client) {
         webview.postMessage({
           type: "assistant",
-          html: this.md.render("OpenAI API key not found. Please configure ~/.deepcoding/settings.json.")
+          html: this.md.render("OpenAI API key not found. Please configure ~/.deepcode/settings.json.")
         });
         return;
       }
@@ -115,7 +115,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
 
   private readSettings(): DeepcodingSettings | null {
     try {
-      const settingsPath = path.join(os.homedir(), ".deepcoding", "settings.json");
+      const settingsPath = path.join(os.homedir(), ".deepcode", "settings.json");
       if (!fs.existsSync(settingsPath)) {
         return null;
       }
@@ -124,7 +124,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       return JSON.parse(raw) as DeepcodingSettings;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(`Failed to read ~/.deepcoding/settings.json: ${message}`);
+      vscode.window.showErrorMessage(`Failed to read ~/.deepcode/settings.json: ${message}`);
       return null;
     }
   }
@@ -139,7 +139,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
   <meta charset="UTF-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${csp} data:; style-src ${csp} 'unsafe-inline'; script-src 'nonce-${nonce}';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Deepcoding</title>
+  <title>Deep Code</title>
   <style>
     :root {
       --bg: #0f1222;
@@ -311,7 +311,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
 </head>
 <body>
   <div class="app">
-    <div class="header">Deepcoding</div>
+    <div class="header">Deep Code</div>
     <div class="messages" id="messages"></div>
     <div class="loading" id="loading">
       <div class="spinner"></div>
