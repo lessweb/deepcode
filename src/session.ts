@@ -5,6 +5,7 @@ import * as crypto from "crypto";
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
 import { getSystemPrompt, getTools } from "./prompt";
+import { ToolExecutor } from "./tools";
 
 export type SessionStatus = "failed" | "pending" | "processing" | "completed" | "interrupted";
 
@@ -64,12 +65,14 @@ export class SessionManager {
   private readonly onAssistantMessage: (html: string) => void;
   private activeSessionId: string | null = null;
   private readonly sessionControllers = new Map<string, AbortController>();
+  private readonly toolExecutor: ToolExecutor;
 
   constructor(options: SessionManagerOptions) {
     this.projectRoot = options.projectRoot;
     this.createOpenAIClient = options.createOpenAIClient;
     this.renderMarkdown = options.renderMarkdown;
     this.onAssistantMessage = options.onAssistantMessage;
+    this.toolExecutor = new ToolExecutor(this.projectRoot);
   }
 
   getActiveSessionId(): string | null {
@@ -175,13 +178,18 @@ export class SessionManager {
 
       const message = response.choices?.[0]?.message;
       const content = message?.content ?? "";
-      const toolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
+      const rawToolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
+      const toolCalls = Array.isArray(rawToolCalls) && rawToolCalls.length > 0 ? rawToolCalls : null;
       const thinking = (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? null;
       const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
       const html = this.renderMarkdown(content || "(empty response)");
 
       const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls);
       this.appendSessionMessage(sessionId, assistantMessage);
+
+      if (toolCalls) {
+        await this.appendToolMessages(sessionId, toolCalls);
+      }
 
       this.updateSessionEntry(sessionId, (entry) => ({
         ...entry,
@@ -399,6 +407,30 @@ export class SessionManager {
       createTime: now,
       updateTime: now
     };
+  }
+
+  private buildToolMessage(sessionId: string, toolCallId: string, content: string): SessionMessage {
+    const now = new Date().toISOString();
+    return {
+      id: crypto.randomUUID(),
+      sessionId,
+      role: "tool",
+      content,
+      contentParams: null,
+      messageParams: { tool_call_id: toolCallId },
+      compacted: false,
+      visible: true,
+      createTime: now,
+      updateTime: now
+    };
+  }
+
+  private async appendToolMessages(sessionId: string, toolCalls: unknown[]): Promise<void> {
+    const toolExecutions = await this.toolExecutor.executeToolCalls(sessionId, toolCalls);
+    for (const execution of toolExecutions) {
+      const toolMessage = this.buildToolMessage(sessionId, execution.toolCallId, execution.content);
+      this.appendSessionMessage(sessionId, toolMessage);
+    }
   }
 
   private buildOpenAIMessages(messages: SessionMessage[]): ChatCompletionMessageParam[] {
