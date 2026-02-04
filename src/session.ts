@@ -155,7 +155,7 @@ export class SessionManager {
         updateTime: now
       }));
       this.onAssistantMessage(
-        this.renderMarkdown("OpenAI API key not found. Please configure ~/.deepcode/settings.json.")
+          this.renderMarkdown("OpenAI API key not found. Please configure ~/.deepcode/settings.json.")
       );
       return;
     }
@@ -181,12 +181,12 @@ export class SessionManager {
 
         const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId));
         const response = await client.chat.completions.create(
-          {
-            model,
-            messages,
-            tools: getTools()
-          },
-          { signal: controller.signal }
+            {
+              model,
+              messages,
+              tools: getTools()
+            },
+            { signal: controller.signal }
         );
 
         const message = response.choices?.[0]?.message;
@@ -194,7 +194,7 @@ export class SessionManager {
         const rawToolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
         toolCalls = Array.isArray(rawToolCalls) && rawToolCalls.length > 0 ? rawToolCalls : null;
         const thinking =
-          (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? null;
+            (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? null;
         const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
         const html = this.renderMarkdown(content || "(empty response)");
 
@@ -234,9 +234,9 @@ export class SessionManager {
         updateTime: new Date().toISOString()
       }));
       this.onAssistantMessage(
-        this.renderMarkdown(
-          "The AI agent has taken several steps but hasn't reached a conclusion yet. Do you want to continue?"
-        )
+          this.renderMarkdown(
+              "The AI agent has taken several steps but hasn't reached a conclusion yet. Do you want to continue?"
+          )
       );
     } catch (error) {
       const errMessage = error instanceof Error ? error.message : String(error);
@@ -368,8 +368,8 @@ export class SessionManager {
   }
 
   private updateSessionEntry(
-    sessionId: string,
-    updater: (entry: SessionEntry) => SessionEntry
+      sessionId: string,
+      updater: (entry: SessionEntry) => SessionEntry
   ): SessionEntry | null {
     const index = this.loadSessionsIndex();
     const entryIndex = index.entries.findIndex((entry) => entry.id === sessionId);
@@ -386,12 +386,12 @@ export class SessionManager {
   private buildUserMessage(sessionId: string, prompt: UserPromptContent): SessionMessage {
     const now = new Date().toISOString();
     const imageParams =
-      prompt.imageUrls
-        ?.filter((url) => Boolean(url))
-        .map((url) => ({
-          type: "image_url",
-          image_url: { url }
-        })) ?? [];
+        prompt.imageUrls
+            ?.filter((url) => Boolean(url))
+            .map((url) => ({
+              type: "image_url",
+              image_url: { url }
+            })) ?? [];
 
     return {
       id: crypto.randomUUID(),
@@ -424,9 +424,9 @@ export class SessionManager {
   }
 
   private buildAssistantMessage(
-    sessionId: string,
-    content: string | null,
-    toolCalls: unknown[] | null
+      sessionId: string,
+      content: string | null,
+      toolCalls: unknown[] | null
   ): SessionMessage {
     const now = new Date().toISOString();
     const messageParams = toolCalls ? { tool_calls: toolCalls } : null;
@@ -470,43 +470,43 @@ export class SessionManager {
 
   private buildOpenAIMessages(messages: SessionMessage[]): ChatCompletionMessageParam[] {
     return messages
-      .filter((message) => message.visible)
-      .map((message) => {
-        const base: ChatCompletionMessageParam = {
-          role: message.role,
-          content: message.content ?? ""
-        } as ChatCompletionMessageParam;
+        .filter((message) => message.visible)
+        .map((message) => {
+          const base: ChatCompletionMessageParam = {
+            role: message.role,
+            content: message.content ?? ""
+          } as ChatCompletionMessageParam;
 
-        const messageParams = message.messageParams as
-          | { tool_calls?: unknown[]; tool_call_id?: string }
-          | null
-          | undefined;
-        if (messageParams?.tool_calls) {
-          (base as { tool_calls?: unknown[] }).tool_calls = messageParams.tool_calls;
-        }
-        if (messageParams?.tool_call_id) {
-          (base as { tool_call_id?: string }).tool_call_id = messageParams.tool_call_id;
-        }
-
-        if (message.role === "user" && message.contentParams) {
-          const contentParts: ChatCompletionContentPart[] = [];
-          if (message.content) {
-            contentParts.push({ type: "text", text: message.content });
+          const messageParams = message.messageParams as
+              | { tool_calls?: unknown[]; tool_call_id?: string }
+              | null
+              | undefined;
+          if (messageParams?.tool_calls) {
+            (base as { tool_calls?: unknown[] }).tool_calls = messageParams.tool_calls;
           }
-          const params = Array.isArray(message.contentParams)
-            ? message.contentParams
-            : [message.contentParams];
-          for (const param of params) {
-            if (param && typeof param === "object") {
-              contentParts.push(param as ChatCompletionContentPart);
+          if (messageParams?.tool_call_id) {
+            (base as { tool_call_id?: string }).tool_call_id = messageParams.tool_call_id;
+          }
+
+          if (message.role === "user" && message.contentParams) {
+            const contentParts: ChatCompletionContentPart[] = [];
+            if (message.content) {
+              contentParts.push({ type: "text", text: message.content });
             }
+            const params = Array.isArray(message.contentParams)
+                ? message.contentParams
+                : [message.contentParams];
+            for (const param of params) {
+              if (param && typeof param === "object") {
+                contentParts.push(param as ChatCompletionContentPart);
+              }
+            }
+            const contentValue: string | ChatCompletionContentPart[] =
+                contentParts.length > 0 ? contentParts : message.content ?? "";
+            (base as { content: string | ChatCompletionContentPart[] }).content = contentValue;
           }
-          const contentValue: string | ChatCompletionContentPart[] =
-            contentParts.length > 0 ? contentParts : message.content ?? "";
-          (base as { content: string | ChatCompletionContentPart[] }).content = contentValue;
-        }
 
-        return base;
-      });
+          return base;
+        });
   }
 }

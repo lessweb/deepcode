@@ -66,6 +66,12 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         await this.handlePrompt(prompt);
+      } else if (message?.type === "interrupt") {
+        // 中断当前会话
+        const activeSessionId = this.sessionManager.getActiveSessionId();
+        if (activeSessionId) {
+          this.sessionManager.interruptSession(activeSessionId);
+        }
       } else if (message?.type === "createNewSession") {
         await this.createNewSession();
       } else if (message?.type === "selectSession") {
