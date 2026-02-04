@@ -162,47 +162,78 @@ export class SessionManager {
       updateTime: now
     }));
 
-    const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId));
     const controller = new AbortController();
     this.sessionControllers.set(sessionId, controller);
 
     try {
-      const response = await client.chat.completions.create(
-        {
-          model,
-          messages,
-          tools: getTools()
-        },
-        { signal: controller.signal }
-      );
+      const maxIterations = 20;
+      let toolCalls: unknown[] | null = null;
 
-      const message = response.choices?.[0]?.message;
-      const content = message?.content ?? "";
-      const rawToolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
-      const toolCalls = Array.isArray(rawToolCalls) && rawToolCalls.length > 0 ? rawToolCalls : null;
-      const thinking = (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? null;
-      const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
-      const html = this.renderMarkdown(content || "(empty response)");
+      for (let iteration = 0; iteration < maxIterations; iteration++) {
+        const session = this.getSession(sessionId);
+        if (session?.status === "interrupted" || session?.status === "failed") {
+          return;
+        }
 
-      const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls);
-      this.appendSessionMessage(sessionId, assistantMessage);
+        const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId));
+        const response = await client.chat.completions.create(
+          {
+            model,
+            messages,
+            tools: getTools()
+          },
+          { signal: controller.signal }
+        );
 
-      if (toolCalls) {
-        await this.appendToolMessages(sessionId, toolCalls);
+        const message = response.choices?.[0]?.message;
+        const content = message?.content ?? "";
+        const rawToolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
+        toolCalls = Array.isArray(rawToolCalls) && rawToolCalls.length > 0 ? rawToolCalls : null;
+        const thinking =
+          (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? null;
+        const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
+        const html = this.renderMarkdown(content || "(empty response)");
+
+        const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls);
+        this.appendSessionMessage(sessionId, assistantMessage);
+
+        if (toolCalls) {
+          await this.appendToolMessages(sessionId, toolCalls);
+        }
+
+        this.updateSessionEntry(sessionId, (entry) => ({
+          ...entry,
+          assistantReply: content,
+          assistantThinking: thinking,
+          assistantRefusal: refusal,
+          toolCalls,
+          usage: response.usage ?? null,
+          status: refusal ? "failed" : toolCalls ? "processing" : "completed",
+          failReason: refusal ? refusal : entry.failReason,
+          updateTime: new Date().toISOString()
+        }));
+
+        this.onAssistantMessage(html);
+
+        if (refusal) {
+          return;
+        }
+
+        if (!toolCalls) {
+          return;
+        }
       }
 
       this.updateSessionEntry(sessionId, (entry) => ({
         ...entry,
-        assistantReply: content,
-        assistantThinking: thinking,
-        assistantRefusal: refusal,
-        toolCalls,
-        usage: response.usage ?? null,
         status: "completed",
         updateTime: new Date().toISOString()
       }));
-
-      this.onAssistantMessage(html);
+      this.onAssistantMessage(
+        this.renderMarkdown(
+          "The AI agent has taken several steps but hasn't reached a conclusion yet. Do you want to continue?"
+        )
+      );
     } catch (error) {
       const errMessage = error instanceof Error ? error.message : String(error);
       const aborted = error instanceof Error && error.name === "AbortError";
