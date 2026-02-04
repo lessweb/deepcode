@@ -57,15 +57,92 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = this.getWebviewHtml(webviewView.webview);
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
-      if (message?.type === "userPrompt") {
+      if (message?.type === "ready") {
+        // webview 已准备好，发送初始数据
+        this.loadInitialSession();
+      } else if (message?.type === "userPrompt") {
         const prompt = String(message.prompt || "").trim();
         if (!prompt) {
           return;
         }
-
         await this.handlePrompt(prompt);
+      } else if (message?.type === "createNewSession") {
+        await this.createNewSession();
+      } else if (message?.type === "selectSession") {
+        const sessionId = String(message.sessionId || "").trim();
+        if (sessionId) {
+          this.loadSession(sessionId);
+        }
+      } else if (message?.type === "backToList") {
+        this.showSessionsList();
       }
     });
+  }
+
+  private async loadInitialSession(): Promise<void> {
+    const sessions = this.sessionManager.listSessions();
+    if (sessions.length === 0) {
+      // 没有历史会话，显示新对话界面
+      this.sendMessage({ type: "initializeEmpty" });
+      return;
+    }
+
+    // 显示最新的对话
+    const latestSession = sessions[sessions.length - 1];
+    this.loadSession(latestSession.id);
+  }
+
+  private loadSession(sessionId: string): void {
+    const session = this.sessionManager.getSession(sessionId);
+    if (!session) {
+      return;
+    }
+
+    // 设置为活动会话
+    this.sessionManager.setActiveSessionId(sessionId);
+    
+    const messages = this.sessionManager.listSessionMessages(sessionId);
+
+    // 发送对话信息到 webview
+    this.sendMessage({
+      type: "loadSession",
+      sessionId,
+      summary: session.summary || "Untitled",
+      messages: messages
+        .filter((m) => m.visible)
+        .map((m) => ({
+          role: m.role,
+          content: m.content,
+          html: m.role === "assistant" ? this.md.render(m.content || "") : null
+        }))
+    });
+  }
+
+  private showSessionsList(): void {
+    const sessions = this.sessionManager.listSessions();
+    this.sendMessage({
+      type: "showSessionsList",
+      sessions: sessions.map((s) => ({
+        id: s.id,
+        summary: s.summary || "Untitled",
+        createTime: s.createTime,
+        updateTime: s.updateTime,
+        status: s.status
+      }))
+    });
+  }
+
+  private async createNewSession(): Promise<void> {
+    // 清除当前活动会话
+    this.sessionManager.setActiveSessionId(null);
+    this.sendMessage({ type: "initializeEmpty" });
+  }
+
+  private sendMessage(message: any): void {
+    if (!this.webviewView) {
+      return;
+    }
+    this.webviewView.webview.postMessage(message);
   }
 
   private async handlePrompt(prompt: string): Promise<void> {

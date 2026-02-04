@@ -62,7 +62,7 @@
     .bubble {
       padding: 12px 10px;
       border-radius: 10px;
-      font-size: 14px;
+      font-size: 12px;
     }
 
     .bubble.user {
@@ -73,7 +73,7 @@
 
     .bubble.assistant {
       align-self: flex-start;
-      background: var(--panel-2);
+      background: color-mix(in srgb, var(--vscode-editor-inactiveSelectionBackground) 40%, transparent);
     }
 
     .bubble.assistant pre {
@@ -91,7 +91,7 @@
     .composer {
       padding: 12px 16px 16px;
       background: var(--vscode-sideBar-background);
-      border-top: 1px solid var(--border-color);
+      flex-shrink: 0;
     }
 
     .input-wrap {
@@ -112,6 +112,7 @@
       outline: none;
       font-family: var(--vscode-font-family);
       resize: none;
+      border: 1px solid var(--border-color);
     }
 
     textarea:focus {
@@ -159,7 +160,8 @@
       gap: 8px;
       color: var(--muted);
       font-size: 12px;
-      padding: 0 16px 10px;
+      padding: 16px 10px;
+      flex-shrink: 0;
     }
 
     .loading.active {
@@ -180,66 +182,142 @@
         transform: rotate(360deg);
       }
     }
+
+    .header-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 16px;
+      background: var(--vscode-titleBar-activeBackground);
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+    }
+
+    .header-back-btn {
+      background: none;
+      border: none;
+      color: var(--vscode-editor-foreground);
+      cursor: pointer;
+      padding: 4px;
+      display: none;
+      font-size: 16px;
+    }
+
+    .header-back-btn.show {
+      display: block;
+    }
+
+    .header-title {
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      color: var(--vscode-descriptionForeground);
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-new-btn {
+      background: var(--vscode-button-background);
+      color: var(--vscode-button-foreground);
+      border: none;
+      border-radius: 4px;
+      padding: 4px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.2s;
+    }
+
+    .header-new-btn:hover {
+      background: var(--vscode-button-hoverBackground);
+    }
+
+    .sessions-list {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    .sessions-list.show {
+      display: flex;
+    }
+
+    .session-item {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border-color);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .session-item:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .session-item-summary {
+      font-size: 13px;
+      color: var(--vscode-editor-foreground);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .session-item-time {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .chat-container.hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
   <div class="app">
-    <div class="header">Deep Code</div>
-    <!-- VS Code 颜色参考 - 临时用于预览，使用后删除 -->
-    <!-- <div style="padding: 10px; display: flex; flex-wrap: wrap; gap: 8px; background: var(--vscode-editor-background);">
-      <div style="padding: 8px; background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">editor-background</div>
-      <div style="padding: 8px; background: var(--vscode-sideBar-background); color: var(--vscode-sideBar-foreground); border: 1px solid var(--vscode-panel-border);">sideBar-background</div>
-      <div style="padding: 8px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: 1px solid var(--vscode-panel-border);">button-background</div>
-      <div style="padding: 8px; background: var(--vscode-button-hoverBackground); color: var(--vscode-button-foreground); border: 1px solid var(--vscode-panel-border);">button-hoverBackground</div>
-      <div style="padding: 8px; background: var(--vscode-input-background); color: var(--vscode-input-foreground); border: 1px solid var(--vscode-input-border);">input-background</div>
-      <div style="padding: 8px; background: var(--vscode-panel-background); color: var(--vscode-panel-foreground); border: 1px solid var(--vscode-panel-border);">panel-background</div>
-      <div style="padding: 8px; background: var(--vscode-titleBar-activeBackground); color: var(--vscode-titleBar-activeForeground); border: 1px solid var(--vscode-panel-border);">titleBar-activeBackground</div>
-      <div style="padding: 8px; background: var(--vscode-titleBar-inactiveBackground); color: var(--vscode-titleBar-inactiveForeground); border: 1px solid var(--vscode-panel-border);">titleBar-inactiveBackground</div>
-      <div style="padding: 8px; background: var(--vscode-list-activeSelectionBackground); color: var(--vscode-list-activeSelectionForeground); border: 1px solid var(--vscode-panel-border);">list-activeSelectionBackground</div>
-      <div style="padding: 8px; background: var(--vscode-list-inactiveSelectionBackground); color: var(--vscode-list-inactiveSelectionForeground); border: 1px solid var(--vscode-panel-border);">list-inactiveSelectionBackground</div>
-      <div style="padding: 8px; background: var(--vscode-list-hoverBackground); color: var(--vscode-list-hoverForeground); border: 1px solid var(--vscode-panel-border);">list-hoverBackground</div>
-      <div style="padding: 8px; background: var(--vscode-list-focusBackground); color: var(--vscode-list-focusForeground); border: 1px solid var(--vscode-panel-border);">list-focusBackground</div>
-      <div style="padding: 8px; background: var(--vscode-editor-selectionBackground); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">editor-selectionBackground</div>
-      <div style="padding: 8px; background: var(--vscode-editor-inactiveSelectionBackground); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">editor-inactiveSelectionBackground</div>
-      <div style="padding: 8px; background: var(--vscode-textCodeBlock-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">textCodeBlock-background</div>
-      <div style="padding: 8px; background: var(--vscode-textBlockQuote-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">textBlockQuote-background</div>
-      <div style="padding: 8px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); border: 1px solid var(--vscode-panel-border);">badge-background</div>
-      <div style="padding: 8px; background: var(--vscode-progressBar-background); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">progressBar-background</div>
-      <div style="padding: 8px; color: var(--vscode-focusBorder); border: 2px solid var(--vscode-focusBorder);">focusBorder</div>
-      <div style="padding: 8px; color: var(--vscode-descriptionForeground); border: 1px solid var(--vscode-panel-border);">descriptionForeground</div>
-      <div style="padding: 8px; color: var(--vscode-errorForeground); border: 1px solid var(--vscode-panel-border);">errorForeground</div>
-      <div style="padding: 8px; color: var(--vscode-notificationsWarningIcon-foreground); border: 1px solid var(--vscode-panel-border);">warningForeground</div>
-      <div style="padding: 8px; background: var(--vscode-inputOption-activeBorder); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">inputOption-activeBorder</div>
-      <div style="padding: 8px; background: var(--vscode-dropdown-background); color: var(--vscode-dropdown-foreground); border: 1px solid var(--vscode-dropdown-border);">dropdown-background</div>
-      <div style="padding: 8px; background: var(--vscode-menu-background); color: var(--vscode-menu-foreground); border: 1px solid var(--vscode-menu-border);">menu-background</div>
-      <div style="padding: 8px; background: var(--vscode-menu-selectionBackground); color: var(--vscode-menu-selectionForeground); border: 1px solid var(--vscode-panel-border);">menu-selectionBackground</div>
-      <div style="padding: 8px; background: var(--vscode-toolbar-hoverBackground); color: var(--vscode-editor-foreground); border: 1px solid var(--vscode-panel-border);">toolbar-hoverBackground</div>
-      <div style="padding: 8px; background: var(--vscode-editorWidget-background); color: var(--vscode-editorWidget-foreground); border: 1px solid var(--vscode-editorWidget-border);">editorWidget-background</div>
-      <div style="padding: 8px; background: var(--vscode-tab-activeBackground); color: var(--vscode-tab-activeForeground); border: 1px solid var(--vscode-panel-border);">tab-activeBackground</div>
-      <div style="padding: 8px; background: var(--vscode-tab-inactiveBackground); color: var(--vscode-tab-inactiveForeground); border: 1px solid var(--vscode-panel-border);">tab-inactiveBackground</div>
-      <div style="padding: 8px; background: var(--vscode-statusBar-background); color: var(--vscode-statusBar-foreground); border: 1px solid var(--vscode-panel-border);">statusBar-background</div>
-      <div style="padding: 8px; background: var(--vscode-activityBar-background); color: var(--vscode-activityBar-foreground); border: 1px solid var(--vscode-panel-border);">activityBar-background</div>
-      <div style="padding: 8px; background: var(--vscode-sideBarTitle-background); color: var(--vscode-sideBarTitle-foreground); border: 1px solid var(--vscode-panel-border);">sideBarTitle-background</div>
-      <div style="padding: 8px; background: var(--vscode-commandCenter-background); color: var(--vscode-commandCenter-foreground); border: 1px solid var(--vscode-panel-border);">commandCenter-background</div>
-      <div style="padding: 8px; color: var(--vscode-input-placeholderForeground); border: 1px solid var(--vscode-panel-border);">input-placeholderForeground</div>
-      <div style="padding: 8px; background: var(--vscode-inputValidation-infoBackground); color: var(--vscode-inputValidation-infoForeground); border: 1px solid var(--vscode-inputValidation-infoBorder);">inputValidation-infoBackground</div>
-      <div style="padding: 8px; background: var(--vscode-inputValidation-warningBackground); color: var(--vscode-inputValidation-warningForeground); border: 1px solid var(--vscode-inputValidation-warningBorder);">inputValidation-warningBackground</div>
-      <div style="padding: 8px; background: var(--vscode-inputValidation-errorBackground); color: var(--vscode-inputValidation-errorForeground); border: 1px solid var(--vscode-inputValidation-errorBorder);">inputValidation-errorBackground</div>
-    </div> -->
-    <!-- 颜色参考结束 -->
-    <div class="messages" id="messages"></div>
-    <div class="loading" id="loading">
-      <div class="spinner"></div>
-      <span>Thinking...</span>
+    <div class="header-container">
+      <div class="header-left">
+        <button class="header-back-btn" id="backBtn" title="Back to sessions">← </button>
+        <div class="header-title" id="headerTitle">Deep Code</div>
+      </div>
+      <button class="header-new-btn" id="newSessionBtn" title="New chat">+ New</button>
     </div>
-    <div class="composer">
-      <div class="input-wrap">
-        <textarea id="prompt" placeholder="Write a prompt..." rows="3"></textarea>
-        <button class="send-button" id="send" title="Send">
-          <svg class="send-icon" viewBox="0 0 1024 1024" aria-hidden="true">
-            <path d="M242.944 512L98.090667 139.605333c-10.069333-25.898667 15.189333-50.688 40.192-41.898666l3.968 1.706666 768 384a32 32 0 0 1 4.138666 54.741334l-4.138666 2.474666-768 384c-24.874667 12.416-51.925333-10.410667-45.44-36.138666l1.28-4.096L242.944 512 98.090667 139.605333 242.944 512zM187.818667 193.706667l111.36 286.293333h282.752a32 32 0 0 1 31.701333 27.648l0.298667 4.352a32 32 0 0 1-27.690667 31.701333l-4.309333 0.298667H299.093333l-111.317333 286.293333L824.405333 512 187.776 193.706667z" />
-          </svg>
-        </button>
+
+    <!-- 对话列表视图 -->
+    <div class="sessions-list" id="sessionsList"></div>
+
+    <!-- 聊天视图 -->
+    <div class="chat-container" id="chatContainer">
+      <div class="messages" id="messages"></div>
+      <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <span>Thinking...</span>
+      </div>
+      <div class="composer">
+        <div class="input-wrap">
+          <textarea id="prompt" placeholder="Write a prompt..." rows="3"></textarea>
+          <button class="send-button" id="send" title="Send">
+            <svg class="send-icon" viewBox="0 0 1024 1024" aria-hidden="true">
+              <path d="M242.944 512L98.090667 139.605333c-10.069333-25.898667 15.189333-50.688 40.192-41.898666l3.968 1.706666 768 384a32 32 0 0 1 4.138666 54.741334l-4.138666 2.474666-768 384c-24.874667 12.416-51.925333-10.410667-45.44-36.138666l1.28-4.096L242.944 512 98.090667 139.605333 242.944 512zM187.818667 193.706667l111.36 286.293333h282.752a32 32 0 0 1 31.701333 27.648l0.298667 4.352a32 32 0 0 1-27.690667 31.701333l-4.309333 0.298667H299.093333l-111.317333 286.293333L824.405333 512 187.776 193.706667z" />
+            </svg>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -250,6 +328,13 @@
     const promptInput = document.getElementById("prompt");
     const sendButton = document.getElementById("send");
     const loading = document.getElementById("loading");
+    const sessionsList = document.getElementById("sessionsList");
+    const chatContainer = document.getElementById("chatContainer");
+    const headerTitle = document.getElementById("headerTitle");
+    const backBtn = document.getElementById("backBtn");
+    const newSessionBtn = document.getElementById("newSessionBtn");
+
+    let currentSessionId = null;
 
     function addBubble(content, role) {
       const bubble = document.createElement("div");
@@ -274,6 +359,38 @@
       icon.classList.toggle("empty", !hasContent);
     }
 
+    function clearMessages() {
+      messages.innerHTML = "";
+    }
+
+    function showChat() {
+      chatContainer.classList.remove("hidden");
+      sessionsList.classList.remove("show");
+      backBtn.classList.add("show");
+    }
+
+    function showSessionsList(sessions) {
+      chatContainer.classList.add("hidden");
+      sessionsList.classList.add("show");
+      backBtn.classList.remove("show");
+      headerTitle.textContent = "All Conversations";
+      sessionsList.innerHTML = "";
+
+      sessions.reverse().forEach((session) => {
+        const item = document.createElement("div");
+        item.className = "session-item";
+        const date = new Date(session.updateTime).toLocaleString();
+        item.innerHTML = `
+          <div class="session-item-summary">${session.summary}</div>
+          <div class="session-item-time">${date}</div>
+        `;
+        item.addEventListener("click", () => {
+          vscode.postMessage({ type: "selectSession", sessionId: session.id });
+        });
+        sessionsList.appendChild(item);
+      });
+    }
+
     promptInput.addEventListener("input", updateSendIconState);
     updateSendIconState();
 
@@ -288,6 +405,14 @@
       vscode.postMessage({ type: "userPrompt", prompt: text });
       updateSendIconState();
     }
+
+    backBtn.addEventListener("click", () => {
+      vscode.postMessage({ type: "backToList" });
+    });
+
+    newSessionBtn.addEventListener("click", () => {
+      vscode.postMessage({ type: "createNewSession" });
+    });
 
     sendButton.addEventListener("click", sendPrompt);
     promptInput.addEventListener("keydown", (event) => {
@@ -305,12 +430,42 @@
 
     window.addEventListener("message", (event) => {
       const message = event.data;
-      if (message.type === "assistant") {
+      if (message.type === "initializeEmpty") {
+        // 初始化空聊天
+        clearMessages();
+        showChat();
+        headerTitle.textContent = "New Conversation";
+        currentSessionId = null;
+      } else if (message.type === "loadSession") {
+        // 加载已有对话
+        currentSessionId = message.sessionId;
+        clearMessages();
+        showChat();
+        headerTitle.textContent = message.summary;
+        // 加载历史消息
+        if (message.messages && Array.isArray(message.messages)) {
+          message.messages.forEach((msg) => {
+            if (msg.role === "user") {
+              addBubble(msg.content, "user");
+            } else if (msg.role === "assistant") {
+              addBubble(msg.html || msg.content, "assistant");
+            }
+          });
+        }
+      } else if (message.type === "showSessionsList") {
+        // 显示对话列表
+        showSessionsList(message.sessions || []);
+      } else if (message.type === "assistant") {
+        // 接收助手回复
         addBubble(message.html || "", "assistant");
       } else if (message.type === "loading") {
+        // 加载状态
         setLoading(Boolean(message.value));
       }
     });
+
+    // webview 准备就绪，请求初始数据
+    vscode.postMessage({ type: "ready" });
   </script>
 </body>
 </html>

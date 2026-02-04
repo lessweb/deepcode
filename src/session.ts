@@ -79,6 +79,10 @@ export class SessionManager {
     return this.activeSessionId;
   }
 
+  setActiveSessionId(sessionId: string | null): void {
+    this.activeSessionId = sessionId;
+  }
+
   async handleUserPrompt(userPrompt: UserPromptContent): Promise<void> {
     if (!this.activeSessionId || !this.getSession(this.activeSessionId)) {
       await this.createSession(userPrompt);
