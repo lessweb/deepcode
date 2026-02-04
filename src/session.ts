@@ -5,7 +5,7 @@ import * as crypto from "crypto";
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
 import { getSystemPrompt, getTools } from "./prompt";
-import { ToolExecutor } from "./tools";
+import { ToolExecutor } from "./tools/executor";
 
 export type SessionStatus = "failed" | "pending" | "processing" | "completed" | "interrupted";
 

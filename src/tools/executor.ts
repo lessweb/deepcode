@@ -1,3 +1,8 @@
+import { handleBashTool } from "./bash-handler";
+import { handleEditTool } from "./edit-handler";
+import { handleReadTool } from "./read-handler";
+import { handleWriteTool } from "./write-handler";
+
 export type ToolCall = {
   id: string;
   type: "function";
@@ -57,10 +62,10 @@ export class ToolExecutor {
   }
 
   private registerToolHandlers(): void {
-    this.toolHandlers.set("bash", this.handleBashTool.bind(this));
-    this.toolHandlers.set("read", this.handleReadTool.bind(this));
-    this.toolHandlers.set("write", this.handleWriteTool.bind(this));
-    this.toolHandlers.set("edit", this.handleEditTool.bind(this));
+    this.toolHandlers.set("bash", handleBashTool);
+    this.toolHandlers.set("read", handleReadTool);
+    this.toolHandlers.set("write", handleWriteTool);
+    this.toolHandlers.set("edit", handleEditTool);
   }
 
   private parseToolCall(toolCall: unknown): ToolCall | null {
@@ -173,50 +178,7 @@ export class ToolExecutor {
       payload.metadata = result.metadata;
     }
 
-    return JSON.stringify(payload);
+    return JSON.stringify(payload, null, 2);
   }
 
-  private async handleBashTool(
-    _args: Record<string, unknown>,
-    _context: ToolExecutionContext
-  ): Promise<ToolExecutionResult> {
-    return {
-      ok: false,
-      name: "bash",
-      error: "Tool not implemented yet."
-    };
-  }
-
-  private async handleReadTool(
-    _args: Record<string, unknown>,
-    _context: ToolExecutionContext
-  ): Promise<ToolExecutionResult> {
-    return {
-      ok: false,
-      name: "read",
-      error: "Tool not implemented yet."
-    };
-  }
-
-  private async handleWriteTool(
-    _args: Record<string, unknown>,
-    _context: ToolExecutionContext
-  ): Promise<ToolExecutionResult> {
-    return {
-      ok: false,
-      name: "write",
-      error: "Tool not implemented yet."
-    };
-  }
-
-  private async handleEditTool(
-    _args: Record<string, unknown>,
-    _context: ToolExecutionContext
-  ): Promise<ToolExecutionResult> {
-    return {
-      ok: false,
-      name: "edit",
-      error: "Tool not implemented yet."
-    };
-  }
 }
