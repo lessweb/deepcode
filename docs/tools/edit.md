@@ -16,7 +16,7 @@ Usage:
   "type": "object",
   "properties": {
     "file_path": {
-      "description": "The absolute path to the file to modify",
+      "description": "The absolute path to the file to modify (must be absolute, not relative)",
       "type": "string"
     },
     "old_string": {

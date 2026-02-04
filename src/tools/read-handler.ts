@@ -19,7 +19,7 @@ export async function handleReadTool(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
-  const filePath = typeof args.file_path === "string" ? args.file_path : "";
+  let filePath = typeof args.file_path === "string" ? args.file_path : "";
   if (!filePath.trim()) {
     return {
       ok: false,
@@ -29,11 +29,47 @@ export async function handleReadTool(
   }
 
   if (!path.isAbsolute(filePath)) {
-    return {
-      ok: false,
-      name: "read",
-      error: "file_path must be an absolute path."
-    };
+    if (filePath.startsWith("../") || filePath.startsWith("..\\")) {
+      return {
+        ok: false,
+        name: "read",
+        error: "file_path must be an absolute path."
+      };
+    }
+    const normalizedSuffix = normalizeRelativeSuffix(filePath);
+    const matches = normalizedSuffix
+      ? findSuffixMatches(context.projectRoot, normalizedSuffix)
+      : [];
+    if (matches.length > 1) {
+      return {
+        ok: false,
+        name: "read",
+        error:
+          "file_path must be an absolute path. " +
+          `The file_path is ambiguous and may refer to multiple files:\n${matches.join("\n")}`
+      };
+    }
+
+    const resolvedPath = path.resolve(context.projectRoot, filePath);
+    if (!fs.existsSync(resolvedPath)) {
+      if (matches.length > 0) {
+        return {
+          ok: false,
+          name: "read",
+          error:
+            "file_path must be an absolute path. " +
+            `The file_path "${filePath}" is ambiguous.`
+        };
+      } else {
+        return {
+          ok: false,
+          name: "read",
+          error: `File not found: ${filePath}`
+        };
+      }
+    }
+
+    filePath = resolvedPath;
   }
 
   if (!fs.existsSync(filePath)) {
@@ -171,6 +207,43 @@ export async function handleReadTool(
       error: message
     };
   }
+}
+
+function normalizeRelativeSuffix(relativePath: string): string | null {
+  const normalized = path.normalize(relativePath).replace(/^(\.\/|\\)+/, "");
+  return normalized.trim() ? path.sep + normalized : null;
+}
+
+function findSuffixMatches(root: string, suffix: string): string[] {
+  const matches: string[] = [];
+  const queue: string[] = [root];
+
+  while (queue.length > 0) {
+    const current = queue.pop();
+    if (!current) {
+      continue;
+    }
+
+    let entries: fs.Dirent[];
+    try {
+      entries = fs.readdirSync(current, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      const fullPath = path.join(current, entry.name);
+      if (entry.isDirectory()) {
+        queue.push(fullPath);
+        continue;
+      }
+      if (entry.isFile() && fullPath.endsWith(suffix)) {
+        matches.push(fullPath);
+      }
+    }
+  }
+
+  return matches;
 }
 
 function parseLineNumber(

@@ -170,7 +170,7 @@ export class SessionManager {
     this.sessionControllers.set(sessionId, controller);
 
     try {
-      const maxIterations = 20;
+      const maxIterations = 30;
       let toolCalls: unknown[] | null = null;
 
       for (let iteration = 0; iteration < maxIterations; iteration++) {

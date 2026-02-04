@@ -85,7 +85,7 @@ export function getTools(): ToolDefinition[] {
           properties: {
             file_path: {
               type: "string",
-              description: "Absolute path to file"
+              description: "UNIX-style path to file"
             },
             offset: {
               type: "number",

@@ -74,12 +74,18 @@ function buildShellCommand(command: string): {
 } {
   const shellPath = resolveShellPath();
   const marker = buildMarker();
-  const wrappedCommand = [
+  const initCommand = buildShellInitCommand(shellPath);
+  const wrappedParts = [];
+  if (initCommand) {
+    wrappedParts.push(initCommand);
+  }
+  wrappedParts.push(
     command,
     "__DEEPCODE_STATUS__=$?",
     `printf '%s%s\\n' "${marker}" "$PWD"`,
     "exit $__DEEPCODE_STATUS__"
-  ].join("; ");
+  );
+  const wrappedCommand = wrappedParts.join("; ");
   return { shellPath, shellArgs: ["-lc", wrappedCommand], marker };
 }
 
@@ -89,6 +95,22 @@ function resolveShellPath(): string {
     return envShell;
   }
   return "/bin/bash";
+}
+
+function buildShellInitCommand(shellPath: string): string | null {
+  if (/\/zsh$/.test(shellPath)) {
+    return [
+      'ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"',
+      'if [ -f "$ZSHRC" ]; then . "$ZSHRC"; fi'
+    ].join("; ");
+  }
+  if (/\/bash$/.test(shellPath)) {
+    return [
+      'BASHRC="${BASH_ENV:-$HOME/.bashrc}"',
+      'if [ -f "$BASHRC" ]; then . "$BASHRC"; fi'
+    ].join("; ");
+  }
+  return null;
 }
 
 function buildMarker(): string {
