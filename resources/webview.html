@@ -368,30 +368,10 @@
     let currentSessionId = null;
     let isProcessing = false;
 
-    // 简单的 Markdown 渲染函数
-    function renderMarkdown(text) {
-      // 代码块
-      text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, '<pre><code>$2</code></pre>');
-      // 行内代码
-      text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
-      // 粗体
-      text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      // 斜体
-      text = text.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-      // 换行
-      text = text.replace(/\n/g, '<br>');
-      return text;
-    }
-
     function addBubble(content, role) {
       const bubble = document.createElement("div");
       bubble.className = "bubble " + role;
-      if (role === "assistant") {
-        bubble.innerHTML = content;
-      } else {
-        // 用户消息也渲染 Markdown
-        bubble.innerHTML = renderMarkdown(content);
-      }
+      bubble.innerHTML = content;
       messages.appendChild(bubble);
       messages.scrollTop = messages.scrollHeight;
     }
@@ -471,7 +451,7 @@
         return;
       }
 
-      addBubble(text, "user");
+      // 发送消息，不立即显示（等待后端返回渲染后的 HTML）
       promptInput.value = "";
       vscode.postMessage({ type: "userPrompt", prompt: text });
       updateSendIconState();
@@ -517,7 +497,7 @@
         if (message.messages && Array.isArray(message.messages)) {
           message.messages.forEach((msg) => {
             if (msg.role === "user") {
-              addBubble(msg.content, "user");
+              addBubble(msg.html || msg.content, "user");
             } else if (msg.role === "assistant") {
               addBubble(msg.html || msg.content, "assistant");
             }
@@ -526,6 +506,9 @@
       } else if (message.type === "showSessionsList") {
         // 显示对话列表
         showSessionsList(message.sessions || []);
+      } else if (message.type === "userMessage") {
+        // 显示用户消息
+        addBubble(message.html || "", "user");
       } else if (message.type === "assistant") {
         // 接收助手回复
         addBubble(message.html || "", "assistant");

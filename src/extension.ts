@@ -119,7 +119,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         .map((m) => ({
           role: m.role,
           content: m.content,
-          html: m.role === "assistant" ? this.md.render(m.content || "") : null
+          html: this.md.render(m.content || "")
         }))
     });
   }
@@ -157,6 +157,11 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     }
 
     const webview = this.webviewView.webview;
+    
+    // 先显示用户消息
+    const userHtml = this.md.render(prompt);
+    webview.postMessage({ type: "userMessage", html: userHtml });
+    
     webview.postMessage({ type: "loading", value: true });
 
     try {
