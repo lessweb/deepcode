@@ -4,6 +4,7 @@ import * as os from "os";
 import * as crypto from "crypto";
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
+import { getSystemPrompt, getTools } from "./prompt";
 
 export type SessionStatus = "failed" | "pending" | "processing" | "completed" | "interrupted";
 
@@ -103,6 +104,10 @@ export class SessionManager {
     index.entries.push(entry);
     this.saveSessionsIndex(index);
 
+    const systemPrompt = getSystemPrompt(this.projectRoot);
+    const systemMessage = this.buildSystemMessage(sessionId, systemPrompt);
+    this.appendSessionMessage(sessionId, systemMessage);
+
     const userMessage = this.buildUserMessage(sessionId, userPrompt);
     this.appendSessionMessage(sessionId, userMessage);
 
@@ -162,7 +167,8 @@ export class SessionManager {
       const response = await client.chat.completions.create(
         {
           model,
-          messages
+          messages,
+          tools: getTools()
         },
         { signal: controller.signal }
       );
@@ -353,6 +359,22 @@ export class SessionManager {
       messageParams: null,
       compacted: false,
       visible: true,
+      createTime: now,
+      updateTime: now
+    };
+  }
+
+  private buildSystemMessage(sessionId: string, content: string): SessionMessage {
+    const now = new Date().toISOString();
+    return {
+      id: crypto.randomUUID(),
+      sessionId,
+      role: "system",
+      content,
+      contentParams: null,
+      messageParams: null,
+      compacted: false,
+      visible: false,
       createTime: now,
       updateTime: now
     };
