@@ -46,7 +46,8 @@ export async function handleReadTool(
         name: "read",
         error:
           "file_path must be an absolute path. " +
-          `The file_path is ambiguous and may refer to multiple files:\n${matches.join("\n")}`
+          `The file_path is ambiguous and may refer to multiple files:\n${matches.slice(0, 3).join("\n")}` +
+          (matches.length > 3 ? `\n...and ${matches.length - 3} more.` : "")
       };
     }
 
