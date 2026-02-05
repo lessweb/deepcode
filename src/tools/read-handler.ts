@@ -1,5 +1,6 @@
 import * as fs from "fs";
 import * as path from "path";
+import ignore from "ignore";
 import type { ToolExecutionContext, ToolExecutionResult } from "./executor";
 import { markFileRead } from "./state";
 
@@ -8,6 +9,30 @@ const MAX_LINE_LENGTH = 2000;
 const PDF_LARGE_PAGE_THRESHOLD = 10;
 const PDF_MAX_PAGE_RANGE = 20;
 const LINE_NUMBER_WIDTH = 6;
+const DEFAULT_GITIGNORE = [
+  "node_modules/",
+  ".git/",
+  "dist/",
+  "build/",
+  "out/",
+  ".next/",
+  ".nuxt/",
+  ".venv/",
+  "venv/",
+  "__pycache__/",
+  "*.pyc",
+  "*.pyo",
+  ".pytest_cache/",
+  ".mypy_cache/",
+  ".ruff_cache/",
+  ".gradle/",
+  ".idea/",
+  ".vscode/",
+  "*.class",
+  "*.jar",
+  "*.war",
+  "target/"
+];
 
 type PageRange = {
   start: number;
@@ -37,8 +62,9 @@ export async function handleReadTool(
       };
     }
     const normalizedSuffix = normalizeRelativeSuffix(filePath);
+    const isIgnored = loadGitignoreMatcher(context.projectRoot);
     const matches = normalizedSuffix
-      ? findSuffixMatches(context.projectRoot, normalizedSuffix)
+      ? findSuffixMatches(context.projectRoot, normalizedSuffix, isIgnored)
       : [];
     if (matches.length > 1) {
       return {
@@ -215,7 +241,11 @@ function normalizeRelativeSuffix(relativePath: string): string | null {
   return normalized.trim() ? path.sep + normalized : null;
 }
 
-function findSuffixMatches(root: string, suffix: string): string[] {
+function findSuffixMatches(
+  root: string,
+  suffix: string,
+  isIgnored: ((relPath: string, isDir: boolean) => boolean) | null
+): string[] {
   const matches: string[] = [];
   const queue: string[] = [root];
 
@@ -234,6 +264,10 @@ function findSuffixMatches(root: string, suffix: string): string[] {
 
     for (const entry of entries) {
       const fullPath = path.join(current, entry.name);
+      const relPath = path.relative(root, fullPath).replace(/\\/g, "/");
+      if (isIgnored && isIgnored(relPath, entry.isDirectory())) {
+        continue;
+      }
       if (entry.isDirectory()) {
         queue.push(fullPath);
         continue;
@@ -245,6 +279,49 @@ function findSuffixMatches(root: string, suffix: string): string[] {
   }
 
   return matches;
+}
+
+function loadGitignoreMatcher(
+  projectRoot: string
+): ((relPath: string, isDir: boolean) => boolean) | null {
+  const gitignorePath = path.join(projectRoot, ".gitignore");
+  if (!fs.existsSync(gitignorePath)) {
+    const ig = ignore();
+    ig.add(DEFAULT_GITIGNORE);
+    return (relPath: string, isDir: boolean) => {
+      if (!relPath) {
+        return false;
+      }
+      const candidate = isDir ? `${relPath}/` : relPath;
+      return ig.ignores(candidate);
+    };
+  }
+
+  let content = "";
+  try {
+    content = fs.readFileSync(gitignorePath, "utf8");
+  } catch {
+    const ig = ignore();
+    ig.add(DEFAULT_GITIGNORE);
+    return (relPath: string, isDir: boolean) => {
+      if (!relPath) {
+        return false;
+      }
+      const candidate = isDir ? `${relPath}/` : relPath;
+      return ig.ignores(candidate);
+    };
+  }
+
+  const ig = ignore();
+  ig.add(DEFAULT_GITIGNORE);
+  ig.add(content);
+  return (relPath: string, isDir: boolean) => {
+    if (!relPath) {
+      return false;
+    }
+    const candidate = isDir ? `${relPath}/` : relPath;
+    return ig.ignores(candidate);
+  };
 }
 
 function parseLineNumber(
