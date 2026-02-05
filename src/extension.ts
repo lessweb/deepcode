@@ -106,7 +106,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     }
 
     // 显示最新的对话
-    const latestSession = sessions[sessions.length - 1];
+    const latestSession = sessions[0];
     this.loadSession(latestSession.id);
   }
 
