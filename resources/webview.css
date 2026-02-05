@@ -256,6 +256,145 @@ body {
   border: 1px solid transparent;
   color: var(--vscode-foreground);
   border-radius: 6px;
+  position: relative;
+}
+
+/* Collapsible Bubble */
+.bubble-collapsible-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+  position: relative;
+}
+
+.bubble-collapsible-header:hover .bubble-title-text {
+  opacity: 0.8;
+}
+
+.bubble-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--vscode-descriptionForeground);
+  flex-shrink: 0;
+  margin-top: 6px;
+  position: relative;
+  z-index: 2;
+}
+
+.bubble-dot.success {
+  background-color: var(--vscode-terminal-ansiGreen);
+}
+
+.bubble-dot.error {
+  background-color: var(--vscode-terminal-ansiRed);
+}
+
+/* 连接线：从圆点向上连接到上一个气泡 */
+/* .bubble-dot::before {
+  content: "";
+  position: absolute;
+  left: 3.5px;
+  bottom: 8px;
+  width: 1px;
+  height: 100vh;
+  background-color: var(--vscode-panel-border);
+  z-index: -1;
+} */
+
+/* 连接线：从圆点向下连接到下一个气泡 */
+/* .bubble-dot::after {
+  content: "";
+  position: absolute;
+  left: 3.5px;
+  top: 8px;
+  width: 1px;
+  height: 100vh;
+  background-color: var(--vscode-panel-border);
+  z-index: -1;
+} */
+
+/* 第一个有圆点的气泡：不显示向上的连接线 */
+.messages > .bubble:has(.bubble-dot):first-child .bubble-dot::before,
+.messages > .bubble:not(:has(.bubble-dot)) ~ .bubble:has(.bubble-dot):first-of-type .bubble-dot::before {
+  display: none;
+}
+
+/* 最后一个有圆点的气泡：不显示向下的连接线 */
+.messages > .bubble:has(.bubble-dot):last-child .bubble-dot::after {
+  display: none;
+}
+
+/* 如果下一个气泡没有圆点，隐藏当前圆点的下方连接线 */
+.bubble:has(.bubble-dot):has(+ .bubble:not(:has(.bubble-dot))) .bubble-dot::after {
+  display: none;
+}
+
+/* 如果上一个气泡没有圆点，隐藏当前圆点的上方连接线 */
+.bubble:not(:has(.bubble-dot)) + .bubble:has(.bubble-dot) .bubble-dot::before {
+  display: none;
+}
+
+.bubble-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--vscode-foreground);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.bubble-title-text {
+  display: inline;
+}
+
+.bubble-title .tool-params {
+  color: var(--vscode-descriptionForeground);
+  font-weight: normal;
+}
+
+.bubble-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.bubble-toggle svg {
+  width: 12px;
+  height: 12px;
+  fill: var(--vscode-descriptionForeground);
+  transition: transform 0.2s;
+}
+
+.bubble-toggle.expanded svg {
+  transform: rotate(180deg);
+}
+
+.bubble-collapsible-content {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--vscode-textCodeBlock-background);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  overflow: auto;
+  font-family: var(--vscode-editor-font-family);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+}
+
+.bubble-collapsible-content.collapsed {
+  display: none;
 }
 
 .bubble.user {
@@ -277,6 +416,8 @@ body {
 .bubble.assistant {
   background: transparent;
   border-color: transparent;
+  padding-left: 32px;
+  position: relative;
 }
 
 .bubble.assistant::before {
@@ -288,6 +429,25 @@ body {
   margin-bottom: 8px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin-left: -32px;
+}
+
+/* 如果assistant气泡包含折叠头部，不显示文字标签，但保留连接线功能 */
+.bubble.assistant:has(.bubble-collapsible-header)::before {
+  content: "";
+  display: block;
+  margin: 0;
+  padding: 0;
+  height: 0;
+}
+
+.bubble.assistant:has(.bubble-collapsible-header) {
+  padding-left: 16px;
+}
+
+.bubble.tool {
+  background: transparent;
+  border-color: transparent;
 }
 
 .bubble p {
