@@ -7,6 +7,8 @@ import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "open
 import { getSystemPrompt, getTools } from "./prompt";
 import { ToolExecutor } from "./tools/executor";
 
+const MAX_SESSION_ENTRIES = 50;
+
 export type SessionStatus = "failed" | "pending" | "processing" | "completed" | "interrupted";
 
 export type SessionEntry = {
@@ -117,7 +119,22 @@ export class SessionManager {
       updateTime: now
     };
     index.entries.push(entry);
+    const sortedEntries = index.entries
+      .slice()
+      .sort((a, b) => {
+        const aTime = Date.parse(a.updateTime);
+        const bTime = Date.parse(b.updateTime);
+        if (Number.isNaN(aTime) || Number.isNaN(bTime)) {
+          return b.updateTime.localeCompare(a.updateTime);
+        }
+        return bTime - aTime;
+      });
+    const keptEntries = sortedEntries.slice(0, MAX_SESSION_ENTRIES);
+    const keptIds = new Set(keptEntries.map((item) => item.id));
+    const droppedEntries = sortedEntries.filter((item) => !keptIds.has(item.id));
+    index.entries = keptEntries;
     this.saveSessionsIndex(index);
+    this.removeSessionMessages(droppedEntries.map((item) => item.id));
 
     const systemPrompt = getSystemPrompt(this.projectRoot);
     const systemMessage = this.buildSystemMessage(sessionId, systemPrompt);
@@ -384,6 +401,19 @@ export class SessionManager {
   private getSessionMessagesPath(sessionId: string): string {
     const { projectDir } = this.getProjectStorage();
     return path.join(projectDir, `${sessionId}.jsonl`);
+  }
+
+  private removeSessionMessages(sessionIds: string[]): void {
+    for (const sessionId of sessionIds) {
+      const messagePath = this.getSessionMessagesPath(sessionId);
+      try {
+        if (fs.existsSync(messagePath)) {
+          fs.unlinkSync(messagePath);
+        }
+      } catch {
+        // ignore delete failures
+      }
+    }
   }
 
   private appendSessionMessage(sessionId: string, message: SessionMessage): void {
