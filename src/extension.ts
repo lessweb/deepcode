@@ -4,7 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import OpenAI from "openai";
 import MarkdownIt from "markdown-it";
-import { SessionManager, type UserPromptContent } from "./session";
+import { SessionManager, SessionMessage, type UserPromptContent } from "./session";
 
 type DeepcodingEnv = {
   MODEL?: string;
@@ -37,11 +37,14 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       projectRoot: this.getWorkspaceRoot(),
       createOpenAIClient: () => this.createOpenAIClient(),
       renderMarkdown: (text) => this.md.render(text),
-      onAssistantMessage: (content?: any, meta?: any, role?: string) => {
+      onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => {
         if (!this.webviewView) {
           return;
         }
-        this.webviewView.webview.postMessage({ type: role || "assistant", content, meta });
+        if (message.role !== "tool") {
+          message.html = this.md.render(message.content || "");
+        }
+        this.webviewView.webview.postMessage({ type: "appendMessage", message, shouldConnect });
       }
     });
   }
@@ -143,7 +146,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         .map((m) => ({
           role: m.role,
           content: m.content,
-          html: this.md.render(m.content || ""),
+          html: m.role !== "tool" ? this.md.render(m.content || "") : undefined,
           meta: m.meta
         }))
     });

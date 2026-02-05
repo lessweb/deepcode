@@ -52,6 +52,7 @@ export type SessionMessage = {
   createTime: string;
   updateTime: string;
   meta?: MessageMeta;
+  html?: string;
 };
 
 export type UserPromptContent = {
@@ -65,13 +66,13 @@ type SessionManagerOptions = {
   projectRoot: string;
   createOpenAIClient: CreateOpenAIClient;
   renderMarkdown: (text: string) => string;
-  onAssistantMessage: (content: any, meta?: any, role?: string) => void;
+  onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
 };
 
 export class SessionManager {
   private readonly projectRoot: string;
   private readonly createOpenAIClient: CreateOpenAIClient;
-  private readonly onAssistantMessage: (content: any, meta?: any, role?: string) => void;
+  private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private activeSessionId: string | null = null;
   private readonly sessionControllers = new Map<string, AbortController>();
   private readonly toolExecutor: ToolExecutor;
@@ -177,7 +178,10 @@ export class SessionManager {
         failReason: "OpenAI API key not found",
         updateTime: now
       }));
-      this.onAssistantMessage("OpenAI API key not found. Please configure ~/.deepcode/settings.json.");
+      this.onAssistantMessage(
+        this.buildAssistantMessage(sessionId, "OpenAI API key not found. Please configure ~/.deepcode/settings.json.", null),
+        false,
+      );
       return;
     }
 
@@ -228,7 +232,7 @@ export class SessionManager {
         }
         const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls);
         this.appendSessionMessage(sessionId, assistantMessage);
-        this.onAssistantMessage(content, assistantMessage.meta);
+        this.onAssistantMessage(assistantMessage, true);
 
         if (toolCalls) {
           await this.appendToolMessages(sessionId, toolCalls);
@@ -265,8 +269,9 @@ export class SessionManager {
         updateTime: new Date().toISOString()
       }));
       this.onAssistantMessage(
-          "The AI agent has taken several steps but hasn't reached a conclusion yet. Do you want to continue?"
-      );
+        this.buildAssistantMessage(sessionId, "The AI agent has taken several steps but hasn't reached a conclusion yet. Do you want to continue?", null),
+        false,
+      )
     } catch (error) {
       const errMessage = error instanceof Error ? error.message : String(error);
       const aborted = error instanceof Error && error.name === "AbortError";
@@ -278,7 +283,10 @@ export class SessionManager {
       }));
 
       if (!aborted) {
-        this.onAssistantMessage(`Request failed: ${errMessage}`);
+        this.onAssistantMessage(
+          this.buildAssistantMessage(sessionId, `Request failed: ${errMessage}`, null),
+          false,
+        );
       }
     } finally {
       this.sessionControllers.delete(sessionId);
@@ -300,7 +308,10 @@ export class SessionManager {
       updateTime: now
     }));
 
-    this.onAssistantMessage("Interrupted.");
+    this.onAssistantMessage(
+      this.buildUserMessage(sessionId, { text: "Interrupted." }),
+      false,
+    );
   }
 
   private isInterrupted(sessionId: string): boolean {
@@ -536,7 +547,7 @@ export class SessionManager {
         toolFunction
       );
       this.appendSessionMessage(sessionId, toolMessage);
-      this.onAssistantMessage(toolMessage.content, toolMessage.meta, "tool");
+      this.onAssistantMessage(toolMessage, true);
     }
   }
 
@@ -600,6 +611,7 @@ export class SessionManager {
       return "";
     }
     const args = (toolFunction as { arguments?: unknown }).arguments;
+    const toolName = (toolFunction as { name?: unknown }).name;
     if (typeof args !== "string") {
       return "";
     }
@@ -614,13 +626,17 @@ export class SessionManager {
         if (firstKey) {
           const value = (parsed as Record<string, unknown>)[firstKey];
           const text = typeof value === "string" ? value : JSON.stringify(value);
-          return text.slice(0, 30) + (text.length > 30 ? "..." : "");
+          if (toolName === "read" && text.startsWith(this.projectRoot)) {
+            return text.slice(this.projectRoot.length).replace(/^[\\/]/, "");
+          } else {
+            return text;
+          }
         }
       }
     } catch {
       // fall back to raw string
     }
-    return trimmed.slice(0, 30) + (trimmed.length > 30 ? "..." : "");
+    return trimmed;
   }
 
   private buildToolResultSnippet(content: string): string {
