@@ -348,9 +348,7 @@
       return;
     }
 
-    // 反转顺序（最新的在上面）
-    const reversedSessions = [...filteredSessions].reverse();
-    reversedSessions.forEach((session) => {
+    filteredSessions.forEach((session) => {
       const item = document.createElement("div");
       item.className = "session-dropdown-item";
       if (session.id === currentSessionId) {
