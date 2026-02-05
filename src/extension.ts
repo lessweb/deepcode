@@ -67,6 +67,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         }
         await this.handlePrompt(prompt);
       } else if (message?.type === "interrupt") {
+        console.log("Received interrupt message from webview");
         // 中断当前会话
         const activeSessionId = this.sessionManager.getActiveSessionId();
         if (activeSessionId) {
@@ -99,7 +100,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       // 没有历史会话，显示新对话界面
       this.sendMessage({
         type: "initializeEmpty",
-        sessions: sessionsList
+        sessions: sessionsList,
+        status: null
       });
       return;
     }
@@ -135,6 +137,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       type: "loadSession",
       sessionId,
       summary: session.summary || "Untitled",
+      status: session.status,
       sessions: sessionsList,
       messages: messages
         .filter((m) => m.visible)
@@ -176,7 +179,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
 
     this.sendMessage({
       type: "initializeEmpty",
-      sessions: sessionsList
+      sessions: sessionsList,
+      status: null
     });
   }
 

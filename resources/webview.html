@@ -56,6 +56,7 @@
       flex-direction: column;
       gap: 1px;
       background: var(--vscode-sideBar-background);
+      padding: 16px;
     }
 
     .bubble {
@@ -65,6 +66,7 @@
       width: 100%;
       border: 1px solid transparent;
       color: var(--vscode-foreground);
+      border-radius: 6px;
     }
 
     .bubble.user {
@@ -225,6 +227,7 @@
     .header-container {
       display: flex;
       align-items: center;
+      justify-content: space-between;
       gap: 8px;
       padding: 4px 16px;
       background: var(--vscode-sideBar-background);
@@ -234,7 +237,6 @@
     }
 
     .header-left {
-      flex: 1;
       position: relative;
       min-width: 0;
     }
@@ -257,7 +259,6 @@
     }
 
     .session-selector-title {
-      flex: 1;
       font-size: 13px;
       color: var(--vscode-foreground);
       white-space: nowrap;
@@ -367,10 +368,6 @@
       fill: var(--vscode-foreground);
     }
 
-    .sessions-list {
-      display: none;
-    }
-
     .chat-container {
       display: flex;
       flex-direction: column;
@@ -403,9 +400,6 @@
     <div class="session-dropdown" id="sessionDropdown"></div>
   </div>
 
-  <!-- 对话列表视图 -->
-  <div class="sessions-list" id="sessionsList"></div>
-
   <!-- 聊天视图 -->
   <div class="chat-container" id="chatContainer">
     <div class="messages" id="messages"></div>
@@ -436,7 +430,6 @@
   const promptInput = document.getElementById("prompt");
   const sendButton = document.getElementById("send");
   const loading = document.getElementById("loading");
-  const sessionsList = document.getElementById("sessionsList");
   const chatContainer = document.getElementById("chatContainer");
   const sessionSelector = document.getElementById("sessionSelector");
   const sessionSelectorTitle = document.getElementById("sessionSelectorTitle");
@@ -446,8 +439,12 @@
   const stopIcon = document.getElementById("stopIcon");
 
   let currentSessionId = null;
-  let isProcessing = false;
+  let currentSessionStatus = null;
   let allSessions = [];
+
+  function isProcessing() {
+    return currentSessionStatus === "processing" || currentSessionStatus === "pending";
+  }
 
   function addBubble(content, role) {
     const bubble = document.createElement("div");
@@ -457,9 +454,11 @@
     messages.scrollTop = messages.scrollHeight;
   }
 
-  function setLoading(isLoading) {
+  function setLoading(isLoading, status) {
     loading.classList.toggle("active", isLoading);
-    isProcessing = isLoading;
+    if (status !== undefined) {
+      currentSessionStatus = status;
+    }
 
     // 切换图标
     if (isLoading) {
@@ -477,7 +476,7 @@
 
   function updateSendIconState() {
     const hasContent = promptInput.value.trim().length > 0;
-    if (!isProcessing) {
+    if (!isProcessing()) {
       sendIcon.classList.toggle("empty", !hasContent);
       sendButton.disabled = false;
     } else {
@@ -487,11 +486,6 @@
 
   function clearMessages() {
     messages.innerHTML = "";
-  }
-
-  function showChat() {
-    chatContainer.classList.remove("hidden");
-    sessionsList.classList.remove("show");
   }
 
   function updateSessionDropdown(sessions) {
@@ -537,12 +531,12 @@
 
   function sendPrompt() {
     const text = promptInput.value.trim();
-    if (!text || (sendButton.disabled && !isProcessing)) {
+    if (!text || (sendButton.disabled && !isProcessing())) {
       return;
     }
 
     // 如果正在处理，则中断
-    if (isProcessing) {
+    if (isProcessing()) {
       vscode.postMessage({ type: "interrupt" });
       return;
     }
@@ -583,9 +577,10 @@
     if (message.type === "initializeEmpty") {
       // 初始化空聊天
       clearMessages();
-      showChat();
       sessionSelectorTitle.textContent = "New Conversation";
       currentSessionId = null;
+      currentSessionStatus = message.status || null;
+      setLoading(false, currentSessionStatus);
       // 如果消息中包含sessions，更新下拉框
       if (message.sessions && Array.isArray(message.sessions)) {
         updateSessionDropdown(message.sessions);
@@ -595,8 +590,10 @@
     } else if (message.type === "loadSession") {
       // 加载已有对话
       currentSessionId = message.sessionId;
+      currentSessionStatus = message.status || null;
+      const isCurrentlyProcessing = currentSessionStatus === "processing" || currentSessionStatus === "pending";
+      setLoading(isCurrentlyProcessing, currentSessionStatus);
       clearMessages();
-      showChat();
       sessionSelectorTitle.textContent = message.summary;
       // 如果消息中包含sessions，更新下拉框
       if (message.sessions && Array.isArray(message.sessions)) {
@@ -606,11 +603,13 @@
       }
       // 加载历史消息
       if (message.messages && Array.isArray(message.messages)) {
-        message.messages.forEach((msg) => {
+        message.messages.filter(x => x.visible).forEach((msg) => {
           if (msg.role === "user") {
             addBubble(msg.html || msg.content, "user");
           } else if (msg.role === "assistant") {
             addBubble(msg.html || msg.content, "assistant");
+          } else if (msg.role === "tool") {
+            addBubble(msg.html || msg.content, "tool");
           }
         });
       }
@@ -625,7 +624,8 @@
       addBubble(message.html || "", "assistant");
     } else if (message.type === "loading") {
       // 加载状态
-      setLoading(Boolean(message.value));
+      const newStatus = message.value ? "processing" : currentSessionStatus;
+      setLoading(Boolean(message.value), newStatus);
     }
   });
 
