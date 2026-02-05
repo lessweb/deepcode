@@ -457,6 +457,16 @@
     }
   });
 
+  function addMessageBubble(msg, shouldConnect) {
+    if (msg.role === "user") {
+      addBubble(msg.html || msg.content, "user", msg.meta, false);
+    } else if (msg.role === "assistant") {
+      addBubble(msg.html || msg.content, "assistant", msg.meta, shouldConnect);
+    } else if (msg.role === "tool") {
+      addBubble(msg.content, "tool", msg.meta, shouldConnect);
+    }
+  }
+
   window.addEventListener("message", (event) => {
     const message = event.data;
     if (message.type === "initializeEmpty") {
@@ -477,7 +487,7 @@
       currentSessionId = message.sessionId;
       clearMessages();
       sessionSelectorTitle.textContent = message.summary;
-      
+
       // 加载历史消息
       if (message.messages && Array.isArray(message.messages)) {
         message.messages.forEach((msg, index) => {
@@ -487,14 +497,7 @@
             const prevMsg = message.messages[index - 1];
             shouldConnect = prevMsg.role !== "user" && msg.role !== "user";
           }
-
-          if (msg.role === "user") {
-            addBubble(msg.html || msg.content, "user", msg.meta, false);
-          } else if (msg.role === "assistant") {
-            addBubble(msg.html || msg.content, "assistant", msg.meta, shouldConnect);
-          } else if (msg.role === "tool") {
-            addBubble(msg.content, "tool", msg.meta, shouldConnect);
-          }
+          addMessageBubble(msg, shouldConnect);
         });
 
         // 更新 lastMessageRole 为最后一条消息的role
@@ -533,6 +536,9 @@
       // 加载状态
       const newStatus = message.value ? "processing" : currentSessionStatus;
       setLoading(Boolean(message.value), newStatus);
+    } else if(message.type === "appendMessage") {
+      // 新增消息
+      addMessageBubble(message.message, message.shouldConnect);
     }
   });
 
