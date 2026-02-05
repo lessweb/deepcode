@@ -31,6 +31,13 @@ export type SessionsIndex = {
 
 export type SessionMessageRole = "system" | "user" | "assistant" | "tool";
 
+export type MessageMeta = {
+  function?: unknown;
+  paramsMd?: string;
+  resultMd?: string;
+  asThinking?: boolean;
+};
+
 export type SessionMessage = {
   id: string;
   sessionId: string;
@@ -42,6 +49,7 @@ export type SessionMessage = {
   visible: boolean;
   createTime: string;
   updateTime: string;
+  meta?: MessageMeta;
 };
 
 export type UserPromptContent = {
