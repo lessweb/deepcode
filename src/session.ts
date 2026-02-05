@@ -31,6 +31,13 @@ export type SessionsIndex = {
 
 export type SessionMessageRole = "system" | "user" | "assistant" | "tool";
 
+export type MessageMeta = {
+  function?: unknown;
+  paramsMd?: string;
+  resultMd?: string;
+  asThinking?: boolean;
+};
+
 export type SessionMessage = {
   id: string;
   sessionId: string;
@@ -42,6 +49,7 @@ export type SessionMessage = {
   visible: boolean;
   createTime: string;
   updateTime: string;
+  meta?: MessageMeta;
 };
 
 export type UserPromptContent = {
@@ -457,12 +465,21 @@ export class SessionManager {
       compacted: false,
       visible: true,
       createTime: now,
-      updateTime: now
+      updateTime: now,
+      meta: toolCalls ? { asThinking: true } : undefined
     };
   }
 
-  private buildToolMessage(sessionId: string, toolCallId: string, content: string): SessionMessage {
+  private buildToolMessage(
+    sessionId: string,
+    toolCallId: string,
+    content: string,
+    toolFunction: unknown | null
+  ): SessionMessage {
     const now = new Date().toISOString();
+    const paramsMd = this.buildToolParamsSnippet(toolFunction);
+    const resultMd = this.buildToolResultSnippet(content);
+    const isInvisibleExecution = this.isInvisibleExecution(content);
     return {
       id: crypto.randomUUID(),
       sessionId,
@@ -471,9 +488,14 @@ export class SessionManager {
       contentParams: null,
       messageParams: { tool_call_id: toolCallId },
       compacted: false,
-      visible: true,
+      visible: !isInvisibleExecution,
       createTime: now,
-      updateTime: now
+      updateTime: now,
+      meta: {
+        function: toolFunction ?? undefined,
+        paramsMd,
+        resultMd
+      }
     };
   }
 
@@ -483,14 +505,20 @@ export class SessionManager {
       return;
     }
     for (const execution of toolExecutions) {
-      const toolMessage = this.buildToolMessage(sessionId, execution.toolCallId, execution.content);
+      const toolFunction = this.findToolFunction(toolCalls, execution.toolCallId);
+      const toolMessage = this.buildToolMessage(
+        sessionId,
+        execution.toolCallId,
+        execution.content,
+        toolFunction
+      );
       this.appendSessionMessage(sessionId, toolMessage);
     }
   }
 
   private buildOpenAIMessages(messages: SessionMessage[]): ChatCompletionMessageParam[] {
     return messages
-        .filter((message) => message.visible)
+        .filter((message) => !message.compacted)
         .map((message) => {
           const base: ChatCompletionMessageParam = {
             role: message.role,
@@ -528,5 +556,76 @@ export class SessionManager {
 
           return base;
         });
+  }
+
+  private findToolFunction(toolCalls: unknown[], toolCallId: string): unknown | null {
+    for (const toolCall of toolCalls) {
+      if (!toolCall || typeof toolCall !== "object") {
+        continue;
+      }
+      const record = toolCall as { id?: unknown; function?: unknown };
+      if (record.id === toolCallId) {
+        return record.function ?? null;
+      }
+    }
+    return null;
+  }
+
+  private buildToolParamsSnippet(toolFunction: unknown | null): string {
+    if (!toolFunction || typeof toolFunction !== "object") {
+      return "";
+    }
+    const args = (toolFunction as { arguments?: unknown }).arguments;
+    if (typeof args !== "string") {
+      return "";
+    }
+    const trimmed = args.trim();
+    if (!trimmed) {
+      return "";
+    }
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        const firstKey = Object.keys(parsed)[0];
+        if (firstKey) {
+          const value = (parsed as Record<string, unknown>)[firstKey];
+          const text = typeof value === "string" ? value : JSON.stringify(value);
+          return text.slice(0, 20);
+        }
+      }
+    } catch {
+      // fall back to raw string
+    }
+    return trimmed.slice(0, 20);
+  }
+
+  private buildToolResultSnippet(content: string): string {
+    if (!content.trim()) {
+      return "";
+    }
+    try {
+      const parsed = JSON.parse(content) as { output?: unknown };
+      if (typeof parsed.output === "string") {
+        return parsed.output.slice(0, 15);
+      }
+      if (parsed.output !== undefined) {
+        return JSON.stringify(parsed.output).slice(0, 15);
+      }
+    } catch {
+      // fall back to raw content
+    }
+    return content.slice(0, 15);
+  }
+
+  private isInvisibleExecution(content: string): boolean {
+    if (!content.trim()) {
+      return false;
+    }
+    try {
+      const parsed = JSON.parse(content) as { name?: unknown; ok?: unknown };
+      return parsed.name === "bash" && parsed.ok !== true;
+    } catch {
+      return false;
+    }
   }
 }
