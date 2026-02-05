@@ -281,6 +281,8 @@ export class SessionManager {
       failReason: "interrupted",
       updateTime: now
     }));
+
+    this.onAssistantMessage(this.renderMarkdown("Interrupted."));
   }
 
   private isInterrupted(sessionId: string): boolean {
