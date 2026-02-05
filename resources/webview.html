@@ -60,7 +60,7 @@
     }
 
     .bubble {
-      padding: 16px;
+      padding: 4px 6px;
       font-size: 13px;
       line-height: 1.6;
       width: 100%;
@@ -71,34 +71,12 @@
 
     .bubble.user {
       background: var(--vscode-editor-background);
-      border-color: var(--vscode-panel-border);
-    }
-
-    .bubble.user::before {
-      content: "User";
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
+      border: 1px solid var(--vscode-sideBar-background);;
     }
 
     .bubble.assistant {
       background: transparent;
       border-color: transparent;
-    }
-
-    .bubble.assistant::before {
-      content: "Assistant";
-      display: block;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--vscode-descriptionForeground);
-      margin-bottom: 8px;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
     }
 
     .bubble pre {
@@ -288,14 +266,54 @@
       border: 1px solid var(--border-color);
       border-radius: 4px;
       max-height: 400px;
-      overflow-y: auto;
       z-index: 10000;
       display: none;
       box-shadow: 0 4px 12px var(--shadow);
+      flex-direction: column;
     }
 
     .session-dropdown.show {
-      display: block;
+      display: flex;
+    }
+
+    .session-search-box {
+      padding: 8px;
+      border-bottom: 1px solid var(--border-color);
+      flex-shrink: 0;
+    }
+
+    .session-search-input {
+      width: 100%;
+      padding: 6px 10px;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border);
+      border-radius: 4px;
+      font-size: 13px;
+      outline: none;
+      font-family: var(--vscode-font-family);
+    }
+
+    .session-search-input:focus {
+      border-color: var(--vscode-focusBorder);
+      outline: 1px solid var(--vscode-focusBorder);
+    }
+
+    .session-search-input::placeholder {
+      color: var(--vscode-input-placeholderForeground);
+    }
+
+    .session-dropdown-list {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .session-dropdown-empty {
+      padding: 20px;
+      text-align: center;
+      color: var(--vscode-descriptionForeground);
+      font-size: 13px;
     }
 
     .session-dropdown-item {
@@ -338,6 +356,13 @@
     .session-dropdown-time {
       font-size: 11px;
       color: var(--vscode-descriptionForeground);
+    }
+
+    .session-dropdown-summary mark {
+      background-color: var(--vscode-editor-findMatchHighlightBackground);
+      color: var(--vscode-editor-foreground);
+      padding: 0 2px;
+      border-radius: 2px;
     }
 
     .header-back-btn {
@@ -441,6 +466,8 @@
   let currentSessionId = null;
   let currentSessionStatus = null;
   let allSessions = [];
+  let sessionSearchInput = null;
+  let sessionDropdownList = null;
 
   function isProcessing() {
     return currentSessionStatus === "processing" || currentSessionStatus === "pending";
@@ -492,7 +519,62 @@
     allSessions = sessions || [];
     sessionDropdown.innerHTML = "";
 
-    const reversedSessions = [...allSessions].reverse();
+    // 创建搜索框
+    const searchBox = document.createElement("div");
+    searchBox.className = "session-search-box";
+    const searchInput = document.createElement("input");
+    searchInput.type = "text";
+    searchInput.className = "session-search-input";
+    searchInput.placeholder = "Search sessions...";
+    searchBox.appendChild(searchInput);
+    sessionDropdown.appendChild(searchBox);
+
+    // 创建列表容器
+    const listContainer = document.createElement("div");
+    listContainer.className = "session-dropdown-list";
+    sessionDropdown.appendChild(listContainer);
+
+    // 保存引用
+    sessionSearchInput = searchInput;
+    sessionDropdownList = listContainer;
+
+    // 渲染所有会话
+    renderFilteredSessions("");
+
+    // 添加搜索事件
+    searchInput.addEventListener("input", (e) => {
+      renderFilteredSessions(e.target.value);
+    });
+
+    // 阻止搜索框点击事件冒泡
+    searchInput.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  function renderFilteredSessions(searchQuery) {
+    if (!sessionDropdownList) return;
+
+    sessionDropdownList.innerHTML = "";
+    const query = searchQuery.toLowerCase().trim();
+
+    // 过滤会话
+    const filteredSessions = allSessions.filter((session) => {
+      const summary = (session.summary || "Untitled").toLowerCase();
+      return summary.includes(query);
+    });
+
+    // 显示结果
+    if (filteredSessions.length === 0) {
+      const emptyDiv = document.createElement("div");
+      emptyDiv.className = "session-dropdown-empty";
+      emptyDiv.textContent = query ? "No sessions found" : "No sessions yet";
+      sessionDropdownList.appendChild(emptyDiv);
+      return;
+    }
+
+    // 反转顺序（最新的在上面）
+    const reversedSessions = [...filteredSessions].reverse();
     reversedSessions.forEach((session) => {
       const item = document.createElement("div");
       item.className = "session-dropdown-item";
@@ -500,27 +582,56 @@
         item.classList.add("active");
       }
       const date = new Date(session.updateTime).toLocaleString();
+
+      // 高亮搜索关键字
+      const summary = session.summary || "Untitled";
+      const highlightedSummary = query
+        ? summary.replace(new RegExp(`(${escapeRegExp(query)})`, 'gi'), '<mark>$1</mark>')
+        : summary;
+
       item.innerHTML = `
-          <div class="session-dropdown-summary">${session.summary}</div>
-          <div class="session-dropdown-time">${date}</div>
-        `;
+        <div class="session-dropdown-summary">${highlightedSummary}</div>
+        <div class="session-dropdown-time">${date}</div>
+      `;
       item.addEventListener("click", () => {
         sessionDropdown.classList.remove("show");
         sessionSelector.classList.remove("open");
         vscode.postMessage({ type: "selectSession", sessionId: session.id });
       });
-      sessionDropdown.appendChild(item);
+      sessionDropdownList.appendChild(item);
     });
+  }
+
+  function escapeRegExp(string) {
+    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
   function toggleSessionDropdown() {
     const isOpen = sessionDropdown.classList.toggle("show");
     sessionSelector.classList.toggle("open", isOpen);
+
+    // 打开时清空搜索框并聚焦
+    if (isOpen && sessionSearchInput) {
+      sessionSearchInput.value = "";
+      renderFilteredSessions("");
+      // 延迟聚焦，确保下拉框已完全显示
+      setTimeout(() => {
+        sessionSearchInput.focus();
+      }, 100);
+    }
   }
 
   // 点击其他地方关闭下拉框
   document.addEventListener("click", (event) => {
     if (!sessionSelector.contains(event.target) && !sessionDropdown.contains(event.target)) {
+      sessionDropdown.classList.remove("show");
+      sessionSelector.classList.remove("open");
+    }
+  });
+
+  // 按 Escape 关闭下拉框
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && sessionDropdown.classList.contains("show")) {
       sessionDropdown.classList.remove("show");
       sessionSelector.classList.remove("open");
     }

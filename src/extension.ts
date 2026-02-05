@@ -67,7 +67,6 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         }
         await this.handlePrompt(prompt);
       } else if (message?.type === "interrupt") {
-        console.log("Received interrupt message from webview");
         // 中断当前会话
         const activeSessionId = this.sessionManager.getActiveSessionId();
         if (activeSessionId) {
