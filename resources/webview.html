@@ -70,12 +70,13 @@
   let allSessions = [];
   let sessionSearchInput = null;
   let sessionDropdownList = null;
+  let lastMessageRole = null;
 
   function isProcessing() {
     return currentSessionStatus === "processing" || currentSessionStatus === "pending";
   }
 
-  function addBubble(content, role, meta) {
+  function addBubble(content, role, meta, shouldConnectToPrev = false) {
     const bubble = document.createElement("div");
     bubble.className = "bubble " + role;
 
@@ -87,8 +88,9 @@
         // 思考气泡（可折叠）
         const header = document.createElement("div");
         header.className = "bubble-collapsible-header";
+        const dotClass = shouldConnectToPrev ? "bubble-dot connect-to-prev" : "bubble-dot";
         header.innerHTML = `
-          <span class="bubble-dot"></span>
+          <span class="${dotClass}"></span>
           <span class="bubble-title">
             <span class="bubble-title-text">Thinking</span>
             <span class="bubble-toggle">
@@ -111,13 +113,25 @@
           } else {
             toggleBtn.classList.add("expanded");
           }
+          // 折叠/展开后重新计算所有连接线
+          requestAnimationFrame(() => {
+            updateAllConnectionLines();
+          });
         });
 
         bubble.appendChild(header);
         bubble.appendChild(contentDiv);
       } else {
-        // 普通assistant气泡
-        bubble.innerHTML = content;
+        // 普通assistant气泡（带圆点但不折叠）
+        const dot = document.createElement("span");
+        dot.className = shouldConnectToPrev ? "bubble-dot connect-to-prev" : "bubble-dot";
+
+        const contentDiv = document.createElement("div");
+        contentDiv.className = "bubble-normal-content";
+        contentDiv.innerHTML = content;
+
+        bubble.appendChild(dot);
+        bubble.appendChild(contentDiv);
       }
     } else if (role === "tool") {
       // 工具气泡（可折叠）
@@ -141,8 +155,13 @@
         ? `<b>${escapeHtml(toolName)}</b> <span class="tool-params">${escapeHtml(paramsMd)}</span>`
         : `<b>${escapeHtml(toolName)}</b>`;
 
+      const dotClasses = ["bubble-dot"];
+      if (isOk) dotClasses.push("success");
+      else dotClasses.push("error");
+      if (shouldConnectToPrev) dotClasses.push("connect-to-prev");
+
       header.innerHTML = `
-        <span class="bubble-dot ${isOk ? 'success' : 'error'}"></span>
+        <span class="${dotClasses.join(' ')}"></span>
         <span class="bubble-title">
           <span class="bubble-title-text">${titleText}</span>
           <span class="bubble-toggle">
@@ -177,6 +196,10 @@
         } else {
           toggleBtn.classList.add("expanded");
         }
+        // 折叠/展开后重新计算所有连接线
+        requestAnimationFrame(() => {
+          updateAllConnectionLines();
+        });
       });
 
       bubble.appendChild(header);
@@ -185,6 +208,45 @@
 
     messages.appendChild(bubble);
     messages.scrollTop = messages.scrollHeight;
+    lastMessageRole = role;
+
+    // 如果需要连接线，动态计算并设置连接线高度
+    if (shouldConnectToPrev && role !== "user") {
+      requestAnimationFrame(() => {
+        updateConnectionLine(bubble);
+      });
+    }
+  }
+
+  function updateConnectionLine(currentBubble) {
+    // 找到当前气泡的圆点
+    const currentDot = currentBubble.querySelector('.bubble-dot.connect-to-prev');
+    if (!currentDot) return;
+
+    // 找到上一个气泡
+    const prevBubble = currentBubble.previousElementSibling;
+    if (!prevBubble) return;
+
+    // 找到上一个气泡的圆点
+    const prevDot = prevBubble.querySelector('.bubble-dot');
+    if (!prevDot) return;
+
+    // 计算两个圆点之间的距离
+    const currentRect = currentDot.getBoundingClientRect();
+    const prevRect = prevDot.getBoundingClientRect();
+    const distance = currentRect.top - prevRect.bottom;
+
+    // 设置连接线高度（加上圆点的半径补偿）
+    if (distance > 0) {
+      currentDot.style.setProperty('--line-height', `${distance}px`);
+    }
+  }
+
+  function updateAllConnectionLines() {
+    const bubbles = messages.querySelectorAll('.bubble');
+    bubbles.forEach(bubble => {
+      updateConnectionLine(bubble);
+    });
   }
 
   function escapeHtml(text) {
@@ -225,6 +287,7 @@
 
   function clearMessages() {
     messages.innerHTML = "";
+    lastMessageRole = null;
   }
 
   function updateSessionDropdown(sessions) {
@@ -419,14 +482,31 @@
       
       // 加载历史消息
       if (message.messages && Array.isArray(message.messages)) {
-        message.messages.forEach((msg) => {
-          if (msg.role === "user") {
-            addBubble(msg.html || msg.content, "user", msg.meta);
-          } else if (msg.role === "assistant") {
-            addBubble(msg.content, "assistant", msg.meta);
-          } else if (msg.role === "tool") {
-            addBubble(msg.content, "tool", msg.meta);
+        message.messages.forEach((msg, index) => {
+          // 判断是否需要连接到上一个消息
+          let shouldConnect = false;
+          if (index > 0) {
+            const prevMsg = message.messages[index - 1];
+            shouldConnect = prevMsg.role !== "user" && msg.role !== "user";
           }
+
+          if (msg.role === "user") {
+            addBubble(msg.html || msg.content, "user", msg.meta, false);
+          } else if (msg.role === "assistant") {
+            addBubble(msg.html || msg.content, "assistant", msg.meta, shouldConnect);
+          } else if (msg.role === "tool") {
+            addBubble(msg.content, "tool", msg.meta, shouldConnect);
+          }
+        });
+
+        // 更新 lastMessageRole 为最后一条消息的role
+        if (message.messages.length > 0) {
+          lastMessageRole = message.messages[message.messages.length - 1].role;
+        }
+
+        // 批量更新所有连接线的高度
+        requestAnimationFrame(() => {
+          updateAllConnectionLines();
         });
       }
       
@@ -446,15 +526,25 @@
       updateSessionDropdown(message.sessions || []);
     } else if (message.type === "userMessage") {
       // 显示用户消息
-      addBubble(message.html || "", "user", message.meta);
+      addBubble(message.html || "", "user", message.meta, false);
     } else if (message.type === "assistant") {
       // 接收助手回复
-      addBubble(message.html || "", "assistant", message.meta);
+      const shouldConnect = lastMessageRole !== null && lastMessageRole !== "user";
+      addBubble(message.html || "", "assistant", message.meta, shouldConnect);
     } else if (message.type === "loading") {
       // 加载状态
       const newStatus = message.value ? "processing" : currentSessionStatus;
       setLoading(Boolean(message.value), newStatus);
     }
+  });
+
+  // 监听窗口大小变化，重新计算连接线
+  let resizeTimeout;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = setTimeout(() => {
+      updateAllConnectionLines();
+    }, 100);
   });
 
   // webview 准备就绪，请求初始数据
