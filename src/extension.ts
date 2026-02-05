@@ -143,7 +143,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         .map((m) => ({
           role: m.role,
           content: m.content,
-          html: this.md.render(m.content || "")
+          html: this.md.render(m.content || ""),
+          meta: m.meta
         }))
     });
   }
