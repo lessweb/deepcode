@@ -624,21 +624,33 @@ export class SessionManager {
   }
 
   private buildToolResultSnippet(content: string): string {
-    if (!content.trim()) {
+    const trimmed = content.trim();
+    if (!trimmed) {
       return "";
     }
+
+    const maxLength = 2000;
+
     try {
       const parsed = JSON.parse(content) as { output?: unknown };
-      if (typeof parsed.output === "string") {
-        return parsed.output.slice(0, 2000) + (parsed.output.length > 2000 ? `... (total ${parsed.output.length} chars)` : "");
-      }
       if (parsed.output !== undefined) {
-        return JSON.stringify(parsed.output).slice(0, 2000) + (JSON.stringify(parsed.output).length > 2000 ? `... (total ${JSON.stringify(parsed.output).length} chars)` : "");
+        if (typeof parsed.output === "string") {
+          return this.formatToolResultSnippet(parsed.output, maxLength);
+        }
+        return this.formatToolResultSnippet(JSON.stringify(parsed.output), maxLength);
       }
     } catch {
       // fall back to raw content
     }
-    return content.slice(0, 15);
+
+    return this.formatToolResultSnippet(content, maxLength);
+  }
+
+  private formatToolResultSnippet(value: string, maxLength: number): string {
+    if (value.length <= maxLength) {
+      return value;
+    }
+    return `${value.slice(0, maxLength)}... (total ${value.length} chars)`;
   }
 
   private isInvisibleExecution(content: string): boolean {
