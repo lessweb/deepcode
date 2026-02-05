@@ -37,11 +37,11 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       projectRoot: this.getWorkspaceRoot(),
       createOpenAIClient: () => this.createOpenAIClient(),
       renderMarkdown: (text) => this.md.render(text),
-      onAssistantMessage: (html) => {
+      onAssistantMessage: (content?: any, meta?: any, role?: string) => {
         if (!this.webviewView) {
           return;
         }
-        this.webviewView.webview.postMessage({ type: "assistant", html });
+        this.webviewView.webview.postMessage({ type: role || "assistant", content, meta });
       }
     });
   }

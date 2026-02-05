@@ -65,14 +65,13 @@ type SessionManagerOptions = {
   projectRoot: string;
   createOpenAIClient: CreateOpenAIClient;
   renderMarkdown: (text: string) => string;
-  onAssistantMessage: (html: string) => void;
+  onAssistantMessage: (content: any, meta?: any, role?: string) => void;
 };
 
 export class SessionManager {
   private readonly projectRoot: string;
   private readonly createOpenAIClient: CreateOpenAIClient;
-  private readonly renderMarkdown: (text: string) => string;
-  private readonly onAssistantMessage: (html: string) => void;
+  private readonly onAssistantMessage: (content: any, meta?: any, role?: string) => void;
   private activeSessionId: string | null = null;
   private readonly sessionControllers = new Map<string, AbortController>();
   private readonly toolExecutor: ToolExecutor;
@@ -80,7 +79,6 @@ export class SessionManager {
   constructor(options: SessionManagerOptions) {
     this.projectRoot = options.projectRoot;
     this.createOpenAIClient = options.createOpenAIClient;
-    this.renderMarkdown = options.renderMarkdown;
     this.onAssistantMessage = options.onAssistantMessage;
     this.toolExecutor = new ToolExecutor(this.projectRoot);
   }
@@ -179,9 +177,7 @@ export class SessionManager {
         failReason: "OpenAI API key not found",
         updateTime: now
       }));
-      this.onAssistantMessage(
-          this.renderMarkdown("OpenAI API key not found. Please configure ~/.deepcode/settings.json.")
-      );
+      this.onAssistantMessage("OpenAI API key not found. Please configure ~/.deepcode/settings.json.");
       return;
     }
 
@@ -225,13 +221,14 @@ export class SessionManager {
         const thinking =
             (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? null;
         const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
-        const html = content ? this.renderMarkdown(content) : "";
+        // const html = content ? this.renderMarkdown(content) : "";
 
         if (this.isInterrupted(sessionId)) {
           return;
         }
         const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls);
         this.appendSessionMessage(sessionId, assistantMessage);
+        this.onAssistantMessage(content, assistantMessage.meta);
 
         if (toolCalls) {
           await this.appendToolMessages(sessionId, toolCalls);
@@ -253,8 +250,6 @@ export class SessionManager {
           updateTime: new Date().toISOString()
         }));
 
-        this.onAssistantMessage(html);
-
         if (refusal) {
           return;
         }
@@ -270,9 +265,7 @@ export class SessionManager {
         updateTime: new Date().toISOString()
       }));
       this.onAssistantMessage(
-          this.renderMarkdown(
-              "The AI agent has taken several steps but hasn't reached a conclusion yet. Do you want to continue?"
-          )
+          "The AI agent has taken several steps but hasn't reached a conclusion yet. Do you want to continue?"
       );
     } catch (error) {
       const errMessage = error instanceof Error ? error.message : String(error);
@@ -285,7 +278,7 @@ export class SessionManager {
       }));
 
       if (!aborted) {
-        this.onAssistantMessage(this.renderMarkdown(`Request failed: ${errMessage}`));
+        this.onAssistantMessage(`Request failed: ${errMessage}`);
       }
     } finally {
       this.sessionControllers.delete(sessionId);
@@ -307,7 +300,7 @@ export class SessionManager {
       updateTime: now
     }));
 
-    this.onAssistantMessage(this.renderMarkdown("Interrupted."));
+    this.onAssistantMessage("Interrupted.");
   }
 
   private isInterrupted(sessionId: string): boolean {
@@ -493,7 +486,7 @@ export class SessionManager {
       contentParams: null,
       messageParams,
       compacted: false,
-      visible: true,
+      visible: (content || "").trim() || toolCalls ? true : false,
       createTime: now,
       updateTime: now,
       meta: toolCalls ? { asThinking: true } : undefined
@@ -543,6 +536,7 @@ export class SessionManager {
         toolFunction
       );
       this.appendSessionMessage(sessionId, toolMessage);
+      this.onAssistantMessage(toolMessage.content, toolMessage.meta, "tool");
     }
   }
 
@@ -620,13 +614,13 @@ export class SessionManager {
         if (firstKey) {
           const value = (parsed as Record<string, unknown>)[firstKey];
           const text = typeof value === "string" ? value : JSON.stringify(value);
-          return text.slice(0, 20);
+          return text.slice(0, 30) + (text.length > 30 ? "..." : "");
         }
       }
     } catch {
       // fall back to raw string
     }
-    return trimmed.slice(0, 20);
+    return trimmed.slice(0, 30) + (trimmed.length > 30 ? "..." : "");
   }
 
   private buildToolResultSnippet(content: string): string {
@@ -636,10 +630,10 @@ export class SessionManager {
     try {
       const parsed = JSON.parse(content) as { output?: unknown };
       if (typeof parsed.output === "string") {
-        return parsed.output.slice(0, 15);
+        return parsed.output.slice(0, 2000) + (parsed.output.length > 2000 ? `... (total ${parsed.output.length} chars)` : "");
       }
       if (parsed.output !== undefined) {
-        return JSON.stringify(parsed.output).slice(0, 15);
+        return JSON.stringify(parsed.output).slice(0, 2000) + (JSON.stringify(parsed.output).length > 2000 ? `... (total ${JSON.stringify(parsed.output).length} chars)` : "");
       }
     } catch {
       // fall back to raw content

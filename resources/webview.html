@@ -423,7 +423,7 @@
           if (msg.role === "user") {
             addBubble(msg.html || msg.content, "user", msg.meta);
           } else if (msg.role === "assistant") {
-            addBubble(msg.html || msg.content, "assistant", msg.meta);
+            addBubble(msg.content, "assistant", msg.meta);
           } else if (msg.role === "tool") {
             addBubble(msg.content, "tool", msg.meta);
           }
