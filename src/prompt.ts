@@ -1,12 +1,14 @@
+import { execSync } from "child_process";
 import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 
 const SYSTEM_PROMPT_BASE = `You are an interactive CLI tool that helps users with software engineering tasks. Use the instructions below and the tools available to you to assist the user.
 
 IMPORTANT: You must NEVER generate or guess URLs for the user unless you are confident that the URLs are for helping the user with programming. You may use URLs provided by the user in their messages or local files.`;
 
-function readToolDocs(projectRoot: string): string {
-  const toolsDir = path.join(projectRoot, "docs", "tools");
+function readToolDocs(extensionRoot: string): string {
+  const toolsDir = path.join(extensionRoot, "docs", "tools");
   if (!fs.existsSync(toolsDir)) {
     return "";
   }
@@ -29,11 +31,35 @@ function readToolDocs(projectRoot: string): string {
 }
 
 export function getSystemPrompt(projectRoot: string): string {
-  const toolDocs = readToolDocs(projectRoot);
-  if (!toolDocs) {
-    return SYSTEM_PROMPT_BASE;
+  const toolDocs = readToolDocs(getExtensionRoot());
+  const basePrompt = toolDocs
+    ? `${SYSTEM_PROMPT_BASE}\n\n# Available Tools\n\n${toolDocs}`
+    : SYSTEM_PROMPT_BASE;
+  return `${basePrompt}\n\n${getRuntimeContext(projectRoot)}`;
+}
+
+function getRuntimeContext(projectRoot: string): string {
+  const uname = getUnameInfo();
+  const env = {
+    "root path": projectRoot,
+    pwd: projectRoot,
+    "system info": uname
+  };
+  return `# Local Workspace Environment\n\n\`\`\`json
+${JSON.stringify(env, null, 2)}
+\`\`\``;
+}
+
+function getUnameInfo(): string {
+  try {
+    return execSync("uname -a", { encoding: "utf8" }).trim();
+  } catch {
+    return `${os.type()} ${os.release()} ${os.arch()}`;
   }
-  return `${SYSTEM_PROMPT_BASE}\n\n# Available Tools\n\n${toolDocs}`;
+}
+
+function getExtensionRoot(): string {
+  return path.resolve(__dirname, "..");
 }
 
 export type ToolDefinition = {
