@@ -316,6 +316,9 @@ body {
 
 .bubble-title-text {
   display: inline;
+}
+
+.bubble-title-text b {
   text-transform: capitalize;
 }
 
