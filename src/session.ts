@@ -97,7 +97,7 @@ export class SessionManager {
     const index = this.loadSessionsIndex();
     const entry: SessionEntry = {
       id: sessionId,
-      summary: "Untitled",
+      summary: userPrompt.text ? userPrompt.text.slice(0, 100) : "[Image Prompt]",
       assistantReply: null,
       assistantThinking: null,
       assistantRefusal: null,
