@@ -67,7 +67,6 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         }
         await this.handlePrompt(prompt);
       } else if (message?.type === "interrupt") {
-        console.log("Received interrupt message from webview");
         // 中断当前会话
         const activeSessionId = this.sessionManager.getActiveSessionId();
         if (activeSessionId) {
@@ -284,9 +283,14 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     const htmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'webview.html');
     let html = fs.readFileSync(htmlPath.fsPath, 'utf8');
 
+    // 获取 CSS 文件 URI
+    const cssPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'webview.css');
+    const cssUri = webview.asWebviewUri(cssPath);
+
     // 替换占位符
     html = html.replace(/\{\{nonce\}\}/g, nonce);
     html = html.replace(/\{\{cspSource\}\}/g, csp);
+    html = html.replace(/\{\{cssUri\}\}/g, cssUri.toString());
 
     return html;
   }
