@@ -174,6 +174,10 @@ export class SessionManager {
       let toolCalls: unknown[] | null = null;
 
       for (let iteration = 0; iteration < maxIterations; iteration++) {
+        if (this.isInterrupted(sessionId)) {
+          return;
+        }
+
         const session = this.getSession(sessionId);
         if (session?.status === "interrupted" || session?.status === "failed") {
           return;
@@ -196,13 +200,20 @@ export class SessionManager {
         const thinking =
             (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? null;
         const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
-        const html = this.renderMarkdown(content || "(empty response)");
+        const html = content ? this.renderMarkdown(content) : "";
 
+        if (this.isInterrupted(sessionId)) {
+          return;
+        }
         const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls);
         this.appendSessionMessage(sessionId, assistantMessage);
 
         if (toolCalls) {
           await this.appendToolMessages(sessionId, toolCalls);
+        }
+
+        if (this.isInterrupted(sessionId)) {
+          return;
         }
 
         this.updateSessionEntry(sessionId, (entry) => ({
@@ -270,6 +281,10 @@ export class SessionManager {
       failReason: "interrupted",
       updateTime: now
     }));
+  }
+
+  private isInterrupted(sessionId: string): boolean {
+    return !this.sessionControllers.has(sessionId);
   }
 
   listSessions(): SessionEntry[] {
@@ -462,6 +477,9 @@ export class SessionManager {
 
   private async appendToolMessages(sessionId: string, toolCalls: unknown[]): Promise<void> {
     const toolExecutions = await this.toolExecutor.executeToolCalls(sessionId, toolCalls);
+    if (this.isInterrupted(sessionId)) {
+      return;
+    }
     for (const execution of toolExecutions) {
       const toolMessage = this.buildToolMessage(sessionId, execution.toolCallId, execution.content);
       this.appendSessionMessage(sessionId, toolMessage);
