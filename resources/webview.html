@@ -530,14 +530,15 @@
   updateSendIconState();
 
   function sendPrompt() {
-    const text = promptInput.value.trim();
-    if (!text || (sendButton.disabled && !isProcessing())) {
+    // 如果正在处理，则中断（不检查输入框内容）
+    if (isProcessing()) {
+      vscode.postMessage({ type: "interrupt" });
       return;
     }
 
-    // 如果正在处理，则中断
-    if (isProcessing()) {
-      vscode.postMessage({ type: "interrupt" });
+    // 检查输入内容
+    const text = promptInput.value.trim();
+    if (!text || sendButton.disabled) {
       return;
     }
 
@@ -590,20 +591,12 @@
     } else if (message.type === "loadSession") {
       // 加载已有对话
       currentSessionId = message.sessionId;
-      currentSessionStatus = message.status || null;
-      const isCurrentlyProcessing = currentSessionStatus === "processing" || currentSessionStatus === "pending";
-      setLoading(isCurrentlyProcessing, currentSessionStatus);
       clearMessages();
       sessionSelectorTitle.textContent = message.summary;
-      // 如果消息中包含sessions，更新下拉框
-      if (message.sessions && Array.isArray(message.sessions)) {
-        updateSessionDropdown(message.sessions);
-      } else if (allSessions.length > 0) {
-        updateSessionDropdown(allSessions);
-      }
+      
       // 加载历史消息
       if (message.messages && Array.isArray(message.messages)) {
-        message.messages.filter(x => x.visible).forEach((msg) => {
+        message.messages.forEach((msg) => {
           if (msg.role === "user") {
             addBubble(msg.html || msg.content, "user");
           } else if (msg.role === "assistant") {
@@ -612,6 +605,18 @@
             addBubble(msg.html || msg.content, "tool");
           }
         });
+      }
+      
+      // 设置会话状态
+      currentSessionStatus = message.status || null;
+      const isCurrentlyProcessing = currentSessionStatus === "processing" || currentSessionStatus === "pending";
+      setLoading(isCurrentlyProcessing, currentSessionStatus);
+      
+      // 如果消息中包含sessions，更新下拉框
+      if (message.sessions && Array.isArray(message.sessions)) {
+        updateSessionDropdown(message.sessions);
+      } else if (allSessions.length > 0) {
+        updateSessionDropdown(allSessions);
       }
     } else if (message.type === "showSessionsList") {
       // 更新对话列表下拉框
