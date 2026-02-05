@@ -10,12 +10,11 @@
       --bg: var(--vscode-editor-background);
       --panel: var(--vscode-sideBar-background);
       --panel-2: var(--vscode-editor-inactiveSelectionBackground);
-      --text: var(--vscode-list-hoverForeground);
       --muted: var(--vscode-descriptionForeground);
       --accent: var(--vscode-focusBorder);
       --accent-2: var(--vscode-button-background);
       --danger: var(--vscode-errorForeground);
-      --shadow: rgba(0, 0, 0, 0.2);
+      --shadow: rgba(0, 0, 0, 0.15);
       --border-color: var(--vscode-panel-border);
     }
 
@@ -28,7 +27,7 @@
       padding: 0;
       height: 100vh;
       background: var(--bg);
-      color: var(--text);
+      color: var(--vscode-foreground);
       font-family: var(--vscode-font-family);
       font-size: var(--vscode-font-size);
     }
@@ -40,66 +39,92 @@
     }
 
     .header {
-      padding: 14px 16px;
+      padding: 4px 16px;
       font-size: 14px;
       text-transform: uppercase;
       letter-spacing: 0.2em;
       color: var(--muted);
-      background: var(--vscode-titleBar-activeBackground);
+      background: var(--vscode-sideBar-background);
       border-bottom: 1px solid var(--border-color);
     }
 
     .messages {
       flex: 1;
       overflow-y: auto;
-      padding: 8px 16px 20px;
+      padding: 0;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 1px;
       background: var(--vscode-sideBar-background);
     }
 
     .bubble {
-      padding: 12px 10px;
-      border-radius: 10px;
+      padding: 16px;
       font-size: 13px;
-      line-height: normal;
-      max-width: 85%;
+      line-height: 1.6;
+      width: 100%;
+      border: 1px solid transparent;
+      color: var(--vscode-foreground);
     }
 
     .bubble.user {
-      align-self: flex-end;
-      background: color-mix(in srgb, var(--vscode-editor-inactiveSelectionBackground) 60%, transparent);
-      color: var(--text);
+      background: var(--vscode-editor-background);
+      border-color: var(--vscode-panel-border);
+    }
+
+    .bubble.user::before {
+      content: "User";
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
     }
 
     .bubble.assistant {
-      align-self: flex-start;
-      background: color-mix(in srgb, var(--vscode-editor-inactiveSelectionBackground) 40%, transparent);
+      background: transparent;
+      border-color: transparent;
     }
 
-    .bubble.assistant pre {
-      padding: 10px;
-      border-radius: 10px;
+    .bubble.assistant::before {
+      content: "Assistant";
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--vscode-descriptionForeground);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .bubble pre {
+      padding: 12px;
+      border-radius: 4px;
       overflow-x: auto;
-      color: var(--text);
+      color: var(--vscode-editor-foreground);
+      background: var(--vscode-textCodeBlock-background);
+      margin: 8px 0;
+      border: 1px solid var(--vscode-panel-border);
     }
 
-    .bubble.assistant code {
+    .bubble code {
       font-family: var(--vscode-editor-font-family);
       font-size: 12px;
+      color: var(--vscode-editor-foreground);
     }
 
-    .bubble.user pre {
-      padding: 10px;
-      border-radius: 10px;
-      overflow-x: auto;
-      color: var(--text);
+    .bubble p {
+      margin: 8px 0;
     }
 
-    .bubble.user code {
-      font-family: var(--vscode-editor-font-family);
-      font-size: 12px;
+    .bubble p:first-of-type {
+      margin-top: 0;
+    }
+
+    .bubble p:last-of-type {
+      margin-bottom: 0;
     }
 
     .composer {
@@ -160,17 +185,12 @@
     .send-icon {
       width: 16px;
       height: 16px;
-      fill: var(--text);
+      fill: var(--vscode-foreground);
       transition: opacity 0.2s;
     }
 
     .send-icon.empty {
       opacity: 0.6;
-    }
-
-    .header-back-icon,
-    .header-new-icon {
-      fill: var(--text);
     }
 
     .loading {
@@ -205,43 +225,122 @@
     .header-container {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 14px 16px;
-      background: var(--vscode-titleBar-activeBackground);
+      gap: 8px;
+      padding: 4px 16px;
+      background: var(--vscode-sideBar-background);
       border-bottom: 1px solid var(--border-color);
       flex-shrink: 0;
+      position: relative;
     }
 
     .header-left {
+      flex: 1;
+      position: relative;
+      min-width: 0;
+    }
+
+    .session-selector {
       display: flex;
       align-items: center;
       gap: 8px;
-      flex: 1;
-    }
-
-    .header-back-btn {
-      background: none;
+      padding: 6px 10px;
+      background: transparent;
       border: none;
-      color: var(--vscode-editor-foreground);
+      border-radius: 4px;
       cursor: pointer;
-      padding: 4px;
-      display: none;
-      font-size: 16px;
+      transition: background 0.2s;
+      width: 100%;
     }
 
-    .header-back-btn.show {
-      display: block;
+    .session-selector:hover {
+      background: var(--vscode-toolbar-hoverBackground);
     }
 
-    .header-title {
-      font-size: 14px;
-      text-transform: uppercase;
-      letter-spacing: 0.2em;
-      color: var(--vscode-descriptionForeground);
+    .session-selector-title {
       flex: 1;
+      font-size: 13px;
+      color: var(--vscode-foreground);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
+      text-align: left;
+    }
+
+    .session-selector-icon {
+      width: 16px;
+      height: 16px;
+      fill: var(--vscode-foreground);
+      transition: transform 0.2s;
+      flex-shrink: 0;
+    }
+
+    .session-selector.open .session-selector-icon {
+      transform: rotate(180deg);
+    }
+
+    .session-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      left: 16px;
+      right: 16px;
+      background: var(--vscode-dropdown-background);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      max-height: 400px;
+      overflow-y: auto;
+      z-index: 10000;
+      display: none;
+      box-shadow: 0 4px 12px var(--shadow);
+    }
+
+    .session-dropdown.show {
+      display: block;
+    }
+
+    .session-dropdown-item {
+      padding: 10px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border-color);
+      transition: background 0.2s;
+    }
+
+    .session-dropdown-item:last-child {
+      border-bottom: none;
+    }
+
+    .session-dropdown-item:hover {
+      background: var(--vscode-list-hoverBackground);
+    }
+
+    .session-dropdown-item.active {
+      background: var(--vscode-list-activeSelectionBackground);
+    }
+
+    .session-dropdown-item.active .session-dropdown-summary {
+      color: var(--vscode-list-activeSelectionForeground);
+    }
+
+    .session-dropdown-item.active .session-dropdown-time {
+      color: var(--vscode-list-activeSelectionForeground);
+      opacity: 0.8;
+    }
+
+    .session-dropdown-summary {
+      font-size: 13px;
+      color: var(--vscode-foreground);
+      margin-bottom: 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .session-dropdown-time {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+    }
+
+    .header-back-btn {
+      display: none;
     }
 
     .header-new-btn {
@@ -254,43 +353,22 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      padding: 6px;
+      flex-shrink: 0;
+    }
+
+    .header-new-btn:hover {
+      background: var(--vscode-toolbar-hoverBackground);
+    }
+
+    .header-new-icon {
+      width: 16px;
+      height: 16px;
+      fill: var(--vscode-foreground);
     }
 
     .sessions-list {
       display: none;
-      flex-direction: column;
-      flex: 1;
-      overflow-y: auto;
-      padding: 8px 0;
-    }
-
-    .sessions-list.show {
-      display: flex;
-    }
-
-    .session-item {
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border-color);
-      cursor: pointer;
-      transition: background 0.2s;
-    }
-
-    .session-item:hover {
-      background: var(--vscode-list-hoverBackground);
-    }
-
-    .session-item-summary {
-      font-size: 13px;
-      color: var(--vscode-editor-foreground);
-      margin-bottom: 4px;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .session-item-time {
-      font-size: 11px;
-      color: var(--vscode-descriptionForeground);
     }
 
     .chat-container {
@@ -306,220 +384,253 @@
   </style>
 </head>
 <body>
-  <div class="app">
-    <div class="header-container">
-      <div class="header-left">
-        <button class="header-back-btn" id="backBtn" title="Back to sessions">
-          <svg class="header-back-icon" viewBox="0 0 1024 1024" width="16" height="16" aria-hidden="true">
-            <path d="M156.608 487.8592c1.156267-1.137067 2.648533-1.6224 3.918933-2.558933l306.666667-301.569067c13.195733-12.970667 34.586667-12.970667 47.781333 0 13.194667 12.978133 13.194667 34.013867 0 46.987733L263.3024 478.210133l579.2032 0c18.978133 0 34.362667 15.128533 34.362667 33.789867 0 18.6624-15.384533 33.793067-34.362667 33.793067L263.3024 545.793067l251.671467 247.486933c13.194667 12.971733 13.194667 34.010667 0 46.984533-13.194667 12.974933-34.586667 12.974933-47.781333 0l-306.666667-301.5616c-1.269333-0.939733-2.762667-1.421867-3.918933-2.562133-6.334933-6.2304-9.240533-14.340267-9.477333-22.5024C147.367467 502.200533 150.273067 494.090667 156.608 487.8592L156.608 487.8592zM156.608 487.8592"></path>
+<div class="app">
+  <div class="header-container">
+    <div class="header-left">
+      <div class="session-selector" id="sessionSelector">
+        <div class="session-selector-title" id="sessionSelectorTitle">Deep Code</div>
+        <svg class="session-selector-icon" viewBox="0 0 1024 1024" aria-hidden="true">
+          <path d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z"></path>
+        </svg>
+      </div>
+    </div>
+    <button class="header-new-btn" id="newSessionBtn" title="New chat">
+      <svg class="header-new-icon" viewBox="0 0 1024 1024" width="16" height="16" aria-hidden="true">
+        <path d="M474 152m8 0l60 0q8 0 8 8l0 704q0 8-8 8l-60 0q-8 0-8-8l0-704q0-8 8-8Z"></path>
+        <path d="M168 474m8 0l672 0q8 0 8 8l0 60q0 8-8 8l-672 0q-8 0-8-8l0-60q0-8 8-8Z"></path>
+      </svg>
+    </button>
+    <div class="session-dropdown" id="sessionDropdown"></div>
+  </div>
+
+  <!-- 对话列表视图 -->
+  <div class="sessions-list" id="sessionsList"></div>
+
+  <!-- 聊天视图 -->
+  <div class="chat-container" id="chatContainer">
+    <div class="messages" id="messages"></div>
+    <div class="loading" id="loading">
+      <div class="spinner"></div>
+      <span>Thinking...</span>
+    </div>
+    <div class="composer">
+      <div class="input-wrap">
+        <textarea id="prompt" placeholder="Write a prompt..." rows="3"></textarea>
+        <button class="send-button" id="send" title="Send">
+          <svg class="send-icon" id="sendIcon" viewBox="0 0 1024 1024" aria-hidden="true">
+            <path d="M242.944 512L98.090667 139.605333c-10.069333-25.898667 15.189333-50.688 40.192-41.898666l3.968 1.706666 768 384a32 32 0 0 1 4.138666 54.741334l-4.138666 2.474666-768 384c-24.874667 12.416-51.925333-10.410667-45.44-36.138666l1.28-4.096L242.944 512 98.090667 139.605333 242.944 512zM187.818667 193.706667l111.36 286.293333h282.752a32 32 0 0 1 31.701333 27.648l0.298667 4.352a32 32 0 0 1-27.690667 31.701333l-4.309333 0.298667H299.093333l-111.317333 286.293333L824.405333 512 187.776 193.706667z" />
+          </svg>
+          <svg class="send-icon" id="stopIcon" viewBox="0 0 1024 1024" aria-hidden="true" style="display: none;">
+            <path d="M777.6 553.6H246.4c-22.4 0-38.4-19.2-38.4-38.4 0-22.4 19.2-38.4 38.4-38.4h528c22.4 0 38.4 19.2 38.4 38.4 3.2 19.2-16 38.4-35.2 38.4z"></path>
+            <path d="M512 1024C230.4 1024 0 793.6 0 512S230.4 0 512 0s512 230.4 512 512-230.4 512-512 512z m0-950.4C268.8 73.6 73.6 268.8 73.6 512S268.8 950.4 512 950.4 950.4 755.2 950.4 512 755.2 73.6 512 73.6z"></path>
           </svg>
         </button>
-        <div class="header-title" id="headerTitle">Deep Code</div>
-      </div>
-      <button class="header-new-btn" id="newSessionBtn" title="New chat">
-        <svg class="header-new-icon" viewBox="0 0 1024 1024" width="14" height="14" aria-hidden="true">
-          <path d="M474 152m8 0l60 0q8 0 8 8l0 704q0 8-8 8l-60 0q-8 0-8-8l0-704q0-8 8-8Z"></path>
-          <path d="M168 474m8 0l672 0q8 0 8 8l0 60q0 8-8 8l-672 0q-8 0-8-8l0-60q0-8 8-8Z"></path>
-        </svg>
-      </button>
-    </div>
-
-    <!-- 对话列表视图 -->
-    <div class="sessions-list" id="sessionsList"></div>
-
-    <!-- 聊天视图 -->
-    <div class="chat-container" id="chatContainer">
-      <div class="messages" id="messages"></div>
-      <div class="loading" id="loading">
-        <div class="spinner"></div>
-        <span>Thinking...</span>
-      </div>
-      <div class="composer">
-        <div class="input-wrap">
-          <textarea id="prompt" placeholder="Write a prompt..." rows="3"></textarea>
-          <button class="send-button" id="send" title="Send">
-            <svg class="send-icon" id="sendIcon" viewBox="0 0 1024 1024" aria-hidden="true">
-              <path d="M242.944 512L98.090667 139.605333c-10.069333-25.898667 15.189333-50.688 40.192-41.898666l3.968 1.706666 768 384a32 32 0 0 1 4.138666 54.741334l-4.138666 2.474666-768 384c-24.874667 12.416-51.925333-10.410667-45.44-36.138666l1.28-4.096L242.944 512 98.090667 139.605333 242.944 512zM187.818667 193.706667l111.36 286.293333h282.752a32 32 0 0 1 31.701333 27.648l0.298667 4.352a32 32 0 0 1-27.690667 31.701333l-4.309333 0.298667H299.093333l-111.317333 286.293333L824.405333 512 187.776 193.706667z" />
-            </svg>
-            <svg class="send-icon" id="stopIcon" viewBox="0 0 1024 1024" aria-hidden="true" style="display: none;">
-              <path d="M777.6 553.6H246.4c-22.4 0-38.4-19.2-38.4-38.4 0-22.4 19.2-38.4 38.4-38.4h528c22.4 0 38.4 19.2 38.4 38.4 3.2 19.2-16 38.4-35.2 38.4z"></path>
-              <path d="M512 1024C230.4 1024 0 793.6 0 512S230.4 0 512 0s512 230.4 512 512-230.4 512-512 512z m0-950.4C268.8 73.6 73.6 268.8 73.6 512S268.8 950.4 512 950.4 950.4 755.2 950.4 512 755.2 73.6 512 73.6z"></path>
-            </svg>
-          </button>
-        </div>
       </div>
     </div>
   </div>
+</div>
 
-  <script nonce="{{nonce}}">
-    const vscode = acquireVsCodeApi();
-    const messages = document.getElementById("messages");
-    const promptInput = document.getElementById("prompt");
-    const sendButton = document.getElementById("send");
-    const loading = document.getElementById("loading");
-    const sessionsList = document.getElementById("sessionsList");
-    const chatContainer = document.getElementById("chatContainer");
-    const headerTitle = document.getElementById("headerTitle");
-    const backBtn = document.getElementById("backBtn");
-    const newSessionBtn = document.getElementById("newSessionBtn");
-    const sendIcon = document.getElementById("sendIcon");
-    const stopIcon = document.getElementById("stopIcon");
+<script nonce="{{nonce}}">
+  const vscode = acquireVsCodeApi();
+  const messages = document.getElementById("messages");
+  const promptInput = document.getElementById("prompt");
+  const sendButton = document.getElementById("send");
+  const loading = document.getElementById("loading");
+  const sessionsList = document.getElementById("sessionsList");
+  const chatContainer = document.getElementById("chatContainer");
+  const sessionSelector = document.getElementById("sessionSelector");
+  const sessionSelectorTitle = document.getElementById("sessionSelectorTitle");
+  const sessionDropdown = document.getElementById("sessionDropdown");
+  const newSessionBtn = document.getElementById("newSessionBtn");
+  const sendIcon = document.getElementById("sendIcon");
+  const stopIcon = document.getElementById("stopIcon");
 
-    let currentSessionId = null;
-    let isProcessing = false;
+  let currentSessionId = null;
+  let isProcessing = false;
+  let allSessions = [];
 
-    function addBubble(content, role) {
-      const bubble = document.createElement("div");
-      bubble.className = "bubble " + role;
-      bubble.innerHTML = content;
-      messages.appendChild(bubble);
-      messages.scrollTop = messages.scrollHeight;
+  function addBubble(content, role) {
+    const bubble = document.createElement("div");
+    bubble.className = "bubble " + role;
+    bubble.innerHTML = content;
+    messages.appendChild(bubble);
+    messages.scrollTop = messages.scrollHeight;
+  }
+
+  function setLoading(isLoading) {
+    loading.classList.toggle("active", isLoading);
+    isProcessing = isLoading;
+
+    // 切换图标
+    if (isLoading) {
+      sendIcon.style.display = "none";
+      stopIcon.style.display = "block";
+      sendButton.title = "Stop";
+    } else {
+      sendIcon.style.display = "block";
+      stopIcon.style.display = "none";
+      sendButton.title = "Send";
     }
 
-    function setLoading(isLoading) {
-      loading.classList.toggle("active", isLoading);
-      isProcessing = isLoading;
-      
-      // 切换图标
-      if (isLoading) {
-        sendIcon.style.display = "none";
-        stopIcon.style.display = "block";
-        sendButton.title = "Stop";
-      } else {
-        sendIcon.style.display = "block";
-        stopIcon.style.display = "none";
-        sendButton.title = "Send";
-      }
-      
-      updateSendIconState();
-    }
-
-    function updateSendIconState() {
-      const hasContent = promptInput.value.trim().length > 0;
-      if (!isProcessing) {
-        sendIcon.classList.toggle("empty", !hasContent);
-        sendButton.disabled = false;
-      } else {
-        sendButton.disabled = false; // 允许点击中断
-      }
-    }
-
-    function clearMessages() {
-      messages.innerHTML = "";
-    }
-
-    function showChat() {
-      chatContainer.classList.remove("hidden");
-      sessionsList.classList.remove("show");
-      backBtn.classList.add("show");
-    }
-
-    function showSessionsList(sessions) {
-      chatContainer.classList.add("hidden");
-      sessionsList.classList.add("show");
-      backBtn.classList.remove("show");
-      headerTitle.textContent = "All Conversations";
-      sessionsList.innerHTML = "";
-
-      sessions.reverse().forEach((session) => {
-        const item = document.createElement("div");
-        item.className = "session-item";
-        const date = new Date(session.updateTime).toLocaleString();
-        item.innerHTML = `
-          <div class="session-item-summary">${session.summary}</div>
-          <div class="session-item-time">${date}</div>
-        `;
-        item.addEventListener("click", () => {
-          vscode.postMessage({ type: "selectSession", sessionId: session.id });
-        });
-        sessionsList.appendChild(item);
-      });
-    }
-
-    promptInput.addEventListener("input", updateSendIconState);
     updateSendIconState();
+  }
 
-    function sendPrompt() {
-      const text = promptInput.value.trim();
-      if (!text || (sendButton.disabled && !isProcessing)) {
-        return;
+  function updateSendIconState() {
+    const hasContent = promptInput.value.trim().length > 0;
+    if (!isProcessing) {
+      sendIcon.classList.toggle("empty", !hasContent);
+      sendButton.disabled = false;
+    } else {
+      sendButton.disabled = false; // 允许点击中断
+    }
+  }
+
+  function clearMessages() {
+    messages.innerHTML = "";
+  }
+
+  function showChat() {
+    chatContainer.classList.remove("hidden");
+    sessionsList.classList.remove("show");
+  }
+
+  function updateSessionDropdown(sessions) {
+    allSessions = sessions || [];
+    sessionDropdown.innerHTML = "";
+
+    const reversedSessions = [...allSessions].reverse();
+    reversedSessions.forEach((session) => {
+      const item = document.createElement("div");
+      item.className = "session-dropdown-item";
+      if (session.id === currentSessionId) {
+        item.classList.add("active");
       }
+      const date = new Date(session.updateTime).toLocaleString();
+      item.innerHTML = `
+          <div class="session-dropdown-summary">${session.summary}</div>
+          <div class="session-dropdown-time">${date}</div>
+        `;
+      item.addEventListener("click", () => {
+        sessionDropdown.classList.remove("show");
+        sessionSelector.classList.remove("open");
+        vscode.postMessage({ type: "selectSession", sessionId: session.id });
+      });
+      sessionDropdown.appendChild(item);
+    });
+  }
 
-      // 如果正在处理，则中断
-      if (isProcessing) {
-        vscode.postMessage({ type: "interrupt" });
-        return;
-      }
+  function toggleSessionDropdown() {
+    const isOpen = sessionDropdown.classList.toggle("show");
+    sessionSelector.classList.toggle("open", isOpen);
+  }
 
-      // 发送消息，不立即显示（等待后端返回渲染后的 HTML）
-      promptInput.value = "";
-      vscode.postMessage({ type: "userPrompt", prompt: text });
-      updateSendIconState();
+  // 点击其他地方关闭下拉框
+  document.addEventListener("click", (event) => {
+    if (!sessionSelector.contains(event.target) && !sessionDropdown.contains(event.target)) {
+      sessionDropdown.classList.remove("show");
+      sessionSelector.classList.remove("open");
+    }
+  });
+
+  promptInput.addEventListener("input", updateSendIconState);
+  updateSendIconState();
+
+  function sendPrompt() {
+    const text = promptInput.value.trim();
+    if (!text || (sendButton.disabled && !isProcessing)) {
+      return;
     }
 
-    backBtn.addEventListener("click", () => {
-      vscode.postMessage({ type: "backToList" });
-    });
+    // 如果正在处理，则中断
+    if (isProcessing) {
+      vscode.postMessage({ type: "interrupt" });
+      return;
+    }
 
-    newSessionBtn.addEventListener("click", () => {
-      vscode.postMessage({ type: "createNewSession" });
-    });
+    // 发送消息，不立即显示（等待后端返回渲染后的 HTML）
+    promptInput.value = "";
+    vscode.postMessage({ type: "userPrompt", prompt: text });
+    updateSendIconState();
+  }
 
-    sendButton.addEventListener("click", sendPrompt);
-    promptInput.addEventListener("keydown", (event) => {
-      if (event.key === "Enter") {
-        if (event.shiftKey) {
-          // Shift+回车：允许换行（默认行为）
-          return;
-        } else {
-          // 回车：发送消息
-          event.preventDefault();
-          sendPrompt();
-        }
+  sessionSelector.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleSessionDropdown();
+  });
+
+  newSessionBtn.addEventListener("click", () => {
+    sessionDropdown.classList.remove("show");
+    sessionSelector.classList.remove("open");
+    vscode.postMessage({ type: "createNewSession" });
+  });
+
+  sendButton.addEventListener("click", sendPrompt);
+  promptInput.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      if (event.shiftKey) {
+        // Shift+回车：允许换行（默认行为）
+        return;
+      } else {
+        // 回车：发送消息
+        event.preventDefault();
+        sendPrompt();
       }
-    });
+    }
+  });
 
-    window.addEventListener("message", (event) => {
-      const message = event.data;
-      if (message.type === "initializeEmpty") {
-        // 初始化空聊天
-        clearMessages();
-        showChat();
-        headerTitle.textContent = "New Conversation";
-        currentSessionId = null;
-      } else if (message.type === "loadSession") {
-        // 加载已有对话
-        currentSessionId = message.sessionId;
-        clearMessages();
-        showChat();
-        headerTitle.textContent = message.summary;
-        // 加载历史消息
-        if (message.messages && Array.isArray(message.messages)) {
-          message.messages.forEach((msg) => {
-            if (msg.role === "user") {
-              addBubble(msg.html || msg.content, "user");
-            } else if (msg.role === "assistant") {
-              addBubble(msg.html || msg.content, "assistant");
-            }
-          });
-        }
-      } else if (message.type === "showSessionsList") {
-        // 显示对话列表
-        showSessionsList(message.sessions || []);
-      } else if (message.type === "userMessage") {
-        // 显示用户消息
-        addBubble(message.html || "", "user");
-      } else if (message.type === "assistant") {
-        // 接收助手回复
-        addBubble(message.html || "", "assistant");
-      } else if (message.type === "loading") {
-        // 加载状态
-        setLoading(Boolean(message.value));
+  window.addEventListener("message", (event) => {
+    const message = event.data;
+    if (message.type === "initializeEmpty") {
+      // 初始化空聊天
+      clearMessages();
+      showChat();
+      sessionSelectorTitle.textContent = "New Conversation";
+      currentSessionId = null;
+      // 如果消息中包含sessions，更新下拉框
+      if (message.sessions && Array.isArray(message.sessions)) {
+        updateSessionDropdown(message.sessions);
+      } else if (allSessions.length > 0) {
+        updateSessionDropdown(allSessions);
       }
-    });
+    } else if (message.type === "loadSession") {
+      // 加载已有对话
+      currentSessionId = message.sessionId;
+      clearMessages();
+      showChat();
+      sessionSelectorTitle.textContent = message.summary;
+      // 如果消息中包含sessions，更新下拉框
+      if (message.sessions && Array.isArray(message.sessions)) {
+        updateSessionDropdown(message.sessions);
+      } else if (allSessions.length > 0) {
+        updateSessionDropdown(allSessions);
+      }
+      // 加载历史消息
+      if (message.messages && Array.isArray(message.messages)) {
+        message.messages.forEach((msg) => {
+          if (msg.role === "user") {
+            addBubble(msg.html || msg.content, "user");
+          } else if (msg.role === "assistant") {
+            addBubble(msg.html || msg.content, "assistant");
+          }
+        });
+      }
+    } else if (message.type === "showSessionsList") {
+      // 更新对话列表下拉框
+      updateSessionDropdown(message.sessions || []);
+    } else if (message.type === "userMessage") {
+      // 显示用户消息
+      addBubble(message.html || "", "user");
+    } else if (message.type === "assistant") {
+      // 接收助手回复
+      addBubble(message.html || "", "assistant");
+    } else if (message.type === "loading") {
+      // 加载状态
+      setLoading(Boolean(message.value));
+    }
+  });
 
-    // webview 准备就绪，请求初始数据
-    vscode.postMessage({ type: "ready" });
-  </script>
+  // webview 准备就绪，请求初始数据
+  vscode.postMessage({ type: "ready" });
+</script>
 </body>
 </html>

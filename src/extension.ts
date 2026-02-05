@@ -87,9 +87,20 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
 
   private async loadInitialSession(): Promise<void> {
     const sessions = this.sessionManager.listSessions();
+    const sessionsList = sessions.map((s) => ({
+      id: s.id,
+      summary: s.summary || "Untitled",
+      createTime: s.createTime,
+      updateTime: s.updateTime,
+      status: s.status
+    }));
+
     if (sessions.length === 0) {
       // 没有历史会话，显示新对话界面
-      this.sendMessage({ type: "initializeEmpty" });
+      this.sendMessage({
+        type: "initializeEmpty",
+        sessions: sessionsList
+      });
       return;
     }
 
@@ -106,14 +117,25 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
 
     // 设置为活动会话
     this.sessionManager.setActiveSessionId(sessionId);
-    
+
     const messages = this.sessionManager.listSessionMessages(sessionId);
+
+    // 获取所有会话列表
+    const sessions = this.sessionManager.listSessions();
+    const sessionsList = sessions.map((s) => ({
+      id: s.id,
+      summary: s.summary || "Untitled",
+      createTime: s.createTime,
+      updateTime: s.updateTime,
+      status: s.status
+    }));
 
     // 发送对话信息到 webview
     this.sendMessage({
       type: "loadSession",
       sessionId,
       summary: session.summary || "Untitled",
+      sessions: sessionsList,
       messages: messages
         .filter((m) => m.visible)
         .map((m) => ({
@@ -141,7 +163,21 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
   private async createNewSession(): Promise<void> {
     // 清除当前活动会话
     this.sessionManager.setActiveSessionId(null);
-    this.sendMessage({ type: "initializeEmpty" });
+
+    // 获取所有会话列表
+    const sessions = this.sessionManager.listSessions();
+    const sessionsList = sessions.map((s) => ({
+      id: s.id,
+      summary: s.summary || "Untitled",
+      createTime: s.createTime,
+      updateTime: s.updateTime,
+      status: s.status
+    }));
+
+    this.sendMessage({
+      type: "initializeEmpty",
+      sessions: sessionsList
+    });
   }
 
   private sendMessage(message: any): void {
@@ -157,16 +193,30 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     }
 
     const webview = this.webviewView.webview;
-    
+
     // 先显示用户消息
     const userHtml = this.md.render(prompt);
     webview.postMessage({ type: "userMessage", html: userHtml });
-    
+
     webview.postMessage({ type: "loading", value: true });
 
     try {
       const userPrompt: UserPromptContent = { text: prompt };
       await this.sessionManager.handleUserPrompt(userPrompt);
+
+      // 发送更新后的会话列表（可能创建了新会话）
+      const sessions = this.sessionManager.listSessions();
+      const sessionsList = sessions.map((s) => ({
+        id: s.id,
+        summary: s.summary || "Untitled",
+        createTime: s.createTime,
+        updateTime: s.updateTime,
+        status: s.status
+      }));
+      webview.postMessage({
+        type: "showSessionsList",
+        sessions: sessionsList
+      });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       webview.postMessage({
