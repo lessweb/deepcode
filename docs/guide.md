@@ -21,25 +21,26 @@ Complete technical guide for the Deep Code VS Code extension - an AI assistant p
 
 ## Overview
 
-**Deep Code** is a VS Code extension that provides an AI chat interface in the sidebar. It supports any OpenAI-compatible API endpoint, making it flexible for use with OpenAI, Azure OpenAI, or self-hosted models.
+**Deep Code** is a VS Code extension that provides a sidebar AI chat interface with persistent sessions, tool execution, and OpenAI-compatible model support.
 
 ### Key Characteristics
 
-- Single-file implementation ([extension.ts](../src/extension.ts))
-- Webview-based chat interface
-- Markdown rendering for AI responses
-- Simple configuration via JSON file
-- Minimal dependencies
+- Multi-file architecture with a dedicated session manager
+- Webview-based chat UI with HTML/CSS templates under `resources/`
+- Persistent sessions stored under `~/.deepcode/projects/<projectCode>/`
+- Tool execution pipeline (bash/read/write/edit)
+- OpenAI-compatible API client (OpenAI, Azure OpenAI, or self-hosted)
 
 ---
 
 ## Features
 
-1. **AI Chat Interface** - Sidebar panel for conversing with AI models
+1. **Sessioned Chat** - Multiple conversations with history and status
 2. **OpenAI Compatible** - Works with OpenAI, Azure OpenAI, and compatible APIs
-3. **Markdown Rendering** - Supports code blocks, links, and formatted text in responses
-4. **Simple Configuration** - Managed through `~/.deepcode/settings.json`
-5. **Modern UI** - Dark theme with gradient backgrounds and smooth animations
+3. **Markdown Rendering** - AI responses rendered via markdown-it
+4. **Tool Calls** - Supports `bash`, `read`, `write`, and `edit` tool execution
+5. **Interrupt** - Stop active sessions from the UI
+6. **Persistent Storage** - Sessions and messages stored on disk
 
 ---
 
@@ -48,13 +49,22 @@ Complete technical guide for the Deep Code VS Code extension - an AI assistant p
 ```
 deepcode/
 ├── src/
-│   └── extension.ts          # Main extension code (single file)
+│   ├── extension.ts          # VS Code activation + webview wiring
+│   ├── session.ts            # Session manager and persistence
+│   └── tools/                # Tool execution pipeline
+│       ├── executor.ts
+│       ├── bash-handler.ts
+│       ├── read-handler.ts
+│       ├── write-handler.ts
+│       └── edit-handler.ts
 ├── resources/
-│   └── deepcoding_icon.png   # Extension icon
+│   ├── webview.html          # UI template
+│   ├── webview.css           # UI styles
+│   └── deepcoding_icon.png
 ├── docs/
-│   └── guide.md             # This documentation
-├── package.json              # Extension manifest
-└── tsconfig.json            # TypeScript configuration
+│   └── guide.md
+├── package.json
+└── tsconfig.json
 ```
 
 ---
@@ -63,181 +73,56 @@ deepcode/
 
 ### 1. Extension Activation
 
-**Location**: [extension.ts:389-394](../src/extension.ts#L389-L394)
+**Location**: `src/extension.ts`
 
-```typescript
-export function activate(context: vscode.ExtensionContext): void {
-  const provider = new DeepcodingViewProvider(context);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(DeepcodingViewProvider.viewType, provider)
-  );
-}
-```
-
-- Called when VS Code activates the extension
-- Registers `DeepcodingViewProvider` to display the chat interface
+- Registers `DeepcodingViewProvider` for the sidebar view
 - View type: `"deepcoding.chatView"`
 
 ### 2. Extension Deactivation
 
-**Location**: [extension.ts:396-398](../src/extension.ts#L396-L398)
+**Location**: `src/extension.ts`
 
-```typescript
-export function deactivate(): void {
-  // no-op
-}
-```
-
-- Called when the extension is deactivated
-- Currently no cleanup needed
+- Currently a no-op
 
 ---
 
 ## Core Components
 
-### DeepcodingViewProvider Class
+### DeepcodingViewProvider
 
-**Location**: [extension.ts:20-387](../src/extension.ts#L20-L387)
+**Location**: `src/extension.ts`
 
-The main class implementing `vscode.WebviewViewProvider`.
+Responsible for:
 
-#### Key Methods
+- Webview initialization and message handling
+- Bridging UI events to `SessionManager`
+- Sending rendered HTML responses to the UI
 
-##### `resolveWebviewView()`
+### SessionManager
 
-**Location**: [extension.ts:36-56](../src/extension.ts#L36-L56)
+**Location**: `src/session.ts`
 
-- Initializes the webview when the view is first shown
-- Sets webview HTML content
-- Registers message listener for user input
+Responsible for:
 
-```typescript
-resolveWebviewView(webviewView: vscode.WebviewView): void {
-  this.webviewView = webviewView;
+- Session creation, updates, and persistence
+- Building OpenAI message payloads
+- Tool-call loop execution and message appends
+- Status tracking (`pending`, `processing`, `completed`, `failed`, `interrupted`)
 
-  webviewView.webview.options = {
-    enableScripts: true,
-    localResourceRoots: [this.context.extensionUri]
-  };
+Storage layout:
 
-  webviewView.webview.html = this.getWebviewHtml(webviewView.webview);
+- `~/.deepcode/projects/<projectCode>/sessions-index.json`
+- `~/.deepcode/projects/<projectCode>/<sessionId>.jsonl`
 
-  webviewView.webview.onDidReceiveMessage(async (message) => {
-    if (message?.type === "userPrompt") {
-      const prompt = String(message.prompt || "").trim();
-      if (!prompt) return;
-      await this.handlePrompt(prompt);
-    }
-  });
-}
-```
+### ToolExecutor
 
-##### `handlePrompt()`
+**Location**: `src/tools/executor.ts`
 
-**Location**: [extension.ts:58-94](../src/extension.ts#L58-L94)
+Responsible for:
 
-- Processes user prompts
-- Calls OpenAI API
-- Converts responses to Markdown HTML
-- Sends results back to webview
-
-```typescript
-private async handlePrompt(prompt: string): Promise<void> {
-  const webview = this.webviewView.webview;
-  webview.postMessage({ type: "loading", value: true });
-
-  try {
-    const { client, model } = this.createOpenAIClient();
-    if (!client) {
-      webview.postMessage({
-        type: "assistant",
-        html: this.md.render("OpenAI API key not found. Please configure ~/.deepcode/settings.json.")
-      });
-      return;
-    }
-
-    const response = await client.chat.completions.create({
-      model,
-      messages: [{ role: "user", content: prompt }]
-    });
-
-    const content = response.choices?.[0]?.message?.content ?? "";
-    const html = this.md.render(content || "(empty response)");
-
-    webview.postMessage({ type: "assistant", html });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    webview.postMessage({
-      type: "assistant",
-      html: this.md.render(`Request failed: ${message}`)
-    });
-  } finally {
-    webview.postMessage({ type: "loading", value: false });
-  }
-}
-```
-
-##### `createOpenAIClient()`
-
-**Location**: [extension.ts:96-114](../src/extension.ts#L96-L114)
-
-- Reads configuration from settings file
-- Creates OpenAI client with custom baseURL support
-
-```typescript
-private createOpenAIClient(): { client: OpenAI | null; model: string } {
-  const settings = this.readSettings();
-  const env = settings?.env || {};
-
-  const apiKey = env.API_KEY?.trim();
-  const baseURL = env.BASE_URL?.trim();
-  const model = env.MODEL?.trim() || DEFAULT_MODEL;
-
-  if (!apiKey) {
-    return { client: null, model };
-  }
-
-  const client = new OpenAI({
-    apiKey,
-    baseURL: baseURL || undefined
-  });
-
-  return { client, model };
-}
-```
-
-##### `readSettings()`
-
-**Location**: [extension.ts:116-130](../src/extension.ts#L116-L130)
-
-- Reads configuration from `~/.deepcode/settings.json`
-- Returns null if file doesn't exist or is invalid
-
-```typescript
-private readSettings(): DeepcodingSettings | null {
-  try {
-    const settingsPath = path.join(os.homedir(), ".deepcode", "settings.json");
-    if (!fs.existsSync(settingsPath)) {
-      return null;
-    }
-
-    const raw = fs.readFileSync(settingsPath, "utf8");
-    return JSON.parse(raw) as DeepcodingSettings;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    vscode.window.showErrorMessage(`Failed to read ~/.deepcode/settings.json: ${message}`);
-    return null;
-  }
-}
-```
-
-##### `getWebviewHtml()`
-
-**Location**: [extension.ts:132-386](../src/extension.ts#L132-L386)
-
-- Generates complete HTML for the chat interface
-- Includes CSS styling and JavaScript logic
-- Implements CSP (Content Security Policy) for security
+- Parsing tool calls from model responses
+- Executing tool handlers (`bash`, `read`, `write`, `edit`)
+- Formatting tool results into JSON strings for tool messages
 
 ---
 
@@ -245,170 +130,36 @@ private readSettings(): DeepcodingSettings | null {
 
 The extension uses VS Code's Webview API for bidirectional communication between the extension backend and the UI frontend.
 
+### Frontend → Backend Message Types
+
+| Type | Payload | Description |
+|------|---------|-------------|
+| `ready` | `{}` | Webview signals it is ready to receive data |
+| `userPrompt` | `{ prompt: string }` | User submits a prompt |
+| `interrupt` | `{}` | Interrupt the active session |
+| `createNewSession` | `{}` | Start a new session |
+| `selectSession` | `{ sessionId: string }` | Load a specific session |
+| `backToList` | `{}` | Return to session list view |
+
+### Backend → Frontend Message Types
+
+| Type | Payload | Description |
+|------|---------|-------------|
+| `initializeEmpty` | `{ sessions, status }` | Empty view with session list |
+| `loadSession` | `{ sessionId, summary, status, sessions, messages }` | Load a session with messages |
+| `showSessionsList` | `{ sessions }` | Update session list |
+| `userMessage` | `{ html }` | Rendered user message |
+| `assistant` | `{ html }` | Rendered assistant message |
+| `loading` | `{ value: boolean }` | Toggle loading state |
+
 ### Communication Flow Overview
 
-1. **Frontend → Backend**: User interactions trigger backend processing
-2. **Backend → Frontend**: Backend sends responses to update the UI
-
-### Frontend → Backend: Triggering `handlePrompt()`
-
-#### 📤 Frontend Sends Message
-
-**Location**: [extension.ts:364](../src/extension.ts#L364)
-
-```javascript
-function sendPrompt() {
-  const text = promptInput.value.trim();
-  if (!text || sendButton.disabled) {
-    return;
-  }
-
-  addBubble(text, "user");
-  promptInput.value = "";
-  vscode.postMessage({ type: "userPrompt", prompt: text });  // ← Send message
-}
-```
-
-- `vscode.postMessage()` sends messages to the extension backend
-- Message format: `{ type: "userPrompt", prompt: "user input" }`
-
-#### 📥 Backend Receives Message
-
-**Location**: [extension.ts:46-55](../src/extension.ts#L46-L55)
-
-```typescript
-webviewView.webview.onDidReceiveMessage(async (message) => {
-  if (message?.type === "userPrompt") {  // ← Check message type
-    const prompt = String(message.prompt || "").trim();
-    if (!prompt) {
-      return;
-    }
-
-    await this.handlePrompt(prompt);  // ← Trigger handlePrompt()
-  }
-});
-```
-
-- `webview.onDidReceiveMessage()` listens for messages from webview
-- Calls `handlePrompt()` when receiving `userPrompt` type
-
-### Backend → Frontend: Updating UI
-
-#### 📤 Backend Sends Message
-
-**Location**: [extension.ts:84](../src/extension.ts#L84), [extension.ts:92](../src/extension.ts#L92)
-
-```typescript
-// Send AI response
-webview.postMessage({ type: "assistant", html });
-
-// Send loading state
-webview.postMessage({ type: "loading", value: false });
-```
-
-#### 📥 Frontend Receives Message
-
-**Location**: [extension.ts:375-382](../src/extension.ts#L375-L382)
-
-```javascript
-window.addEventListener("message", (event) => {
-  const message = event.data;
-
-  if (message.type === "assistant") {
-    addBubble(message.html || "", "assistant");  // ← Display AI response
-  } else if (message.type === "loading") {
-    setLoading(Boolean(message.value));  // ← Update loading state
-  }
-});
-```
-
-#### 🎨 UI Update Functions
-
-**Location**: [extension.ts:339-349](../src/extension.ts#L339-L349)
-
-```javascript
-function addBubble(content, role) {
-  const bubble = document.createElement("div");
-  bubble.className = "bubble " + role;
-  if (role === "assistant") {
-    bubble.innerHTML = content;  // ← AI response (HTML)
-  } else {
-    bubble.textContent = content;  // ← User message (text)
-  }
-  messages.appendChild(bubble);
-  messages.scrollTop = messages.scrollHeight;
-}
-```
-
-**Location**: [extension.ts:351-354](../src/extension.ts#L351-L354)
-
-```javascript
-function setLoading(isLoading) {
-  loading.classList.toggle("active", isLoading);
-  sendButton.disabled = isLoading;
-}
-```
-
-### Complete Message Flow Diagram
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  User Clicks Send Button                     │
-└─────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────┐
-│  Webview (Frontend JavaScript)                               │
-│  vscode.postMessage({ type: "userPrompt", prompt: text })   │
-└─────────────────────────────────────────────────────────────┘
-                              ↓ (Cross-process communication)
-┌─────────────────────────────────────────────────────────────┐
-│  Extension Host (Backend TypeScript)                         │
-│  webview.onDidReceiveMessage((message) => {                 │
-│    if (message.type === "userPrompt") {                     │
-│      handlePrompt(message.prompt)  ← Trigger handler        │
-│    }                                                         │
-│  })                                                          │
-└─────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────┐
-│  handlePrompt() calls OpenAI API                             │
-└─────────────────────────────────────────────────────────────┘
-                              ↓
-┌─────────────────────────────────────────────────────────────┐
-│  Extension Host                                              │
-│  webview.postMessage({ type: "assistant", html })           │
-└─────────────────────────────────────────────────────────────┘
-                              ↓ (Cross-process communication)
-┌─────────────────────────────────────────────────────────────┐
-│  Webview (Frontend JavaScript)                               │
-│  window.addEventListener("message", (event) => {            │
-│    if (event.data.type === "assistant") {                   │
-│      addBubble(event.data.html, "assistant")  ← Update DOM   │
-│    }                                                         │
-│  })                                                          │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Message Types Reference
-
-#### Frontend → Backend
-
-| Type | Payload | Description |
-|------|---------|-------------|
-| `userPrompt` | `{ prompt: string }` | User submits a prompt to the AI |
-
-#### Backend → Frontend
-
-| Type | Payload | Description |
-|------|---------|-------------|
-| `assistant` | `{ html: string }` | AI response in HTML format |
-| `loading` | `{ value: boolean }` | Loading state indicator |
-
-### Security Features
-
-- Webview runs in a sandboxed environment
-- `vscode` object acquired via `acquireVsCodeApi()` ([extension.ts:333](../src/extension.ts#L333))
-- CSP (Content Security Policy) restricts script execution ([extension.ts:140](../src/extension.ts#L140))
+1. Webview sends `ready` and receives initial session data
+2. User submits prompt (`userPrompt`)
+3. Backend renders user message and calls `SessionManager.handleUserPrompt`
+4. SessionManager builds messages, calls OpenAI, executes tools if needed
+5. Backend streams assistant HTML updates to the webview
+6. UI updates loading state and session list
 
 ---
 
@@ -417,19 +168,19 @@ function setLoading(isLoading) {
 ```
 User Input
   ↓
-Webview sends "userPrompt" message
+Webview sends "userPrompt"
   ↓
-handlePrompt() processes request
+SessionManager create/reply session
   ↓
-Create OpenAI client
+Build OpenAI messages from session history
   ↓
 Call chat.completions.create()
   ↓
-Render response as Markdown HTML
+Append assistant message
   ↓
-Send "assistant" message to Webview
+If tool calls exist: execute tools, append tool messages, loop (bounded)
   ↓
-Display in chat interface
+Update session status and notify UI
 ```
 
 ---
@@ -444,8 +195,8 @@ Display in chat interface
 {
   "env": {
     "API_KEY": "your-api-key",
-    "BASE_URL": "https://api.openai.com/v1",  // Optional
-    "MODEL": "gpt-4o-mini"  // Optional, defaults to gpt-4o-mini
+    "BASE_URL": "https://api.openai.com/v1",
+    "MODEL": "gpt-4o-mini"
   }
 }
 ```
@@ -458,71 +209,34 @@ Display in chat interface
 | `BASE_URL` | string | No | OpenAI default | Custom API endpoint URL |
 | `MODEL` | string | No | `gpt-4o-mini` | Model identifier to use |
 
-### Example Configurations
-
-#### OpenAI
-
-```json
-{
-  "env": {
-    "API_KEY": "sk-xxxxxxxxxxxx",
-    "MODEL": "gpt-4o"
-  }
-}
-```
-
-#### Azure OpenAI
-
-```json
-{
-  "env": {
-    "API_KEY": "your-azure-key",
-    "BASE_URL": "https://your-resource.openai.azure.com/openai/deployments/your-deployment",
-    "MODEL": "gpt-4"
-  }
-}
-```
-
-#### Self-Hosted (e.g., LocalAI)
-
-```json
-{
-  "env": {
-    "API_KEY": "not-needed",
-    "BASE_URL": "http://localhost:8080/v1",
-    "MODEL": "gpt-3.5-turbo"
-  }
-}
-```
-
 ---
 
 ## Dependencies
 
-From [package.json](../package.json):
+From `package.json`:
 
 ### Runtime Dependencies
 
-1. **openai** (v4.80.0)
+1. **openai**
    - OpenAI SDK for API calls
    - Supports custom base URLs for compatibility
 
-2. **markdown-it** (v14.1.0)
+2. **markdown-it**
    - Markdown parser and renderer
    - Converts AI responses to HTML
 
 ### Development Dependencies
 
-1. **@types/vscode** (v1.85.0)
+1. **@types/vscode**
    - TypeScript definitions for VS Code API
 
-2. **@types/markdown-it** (v14.1.1)
+2. **@types/markdown-it**
    - TypeScript definitions for markdown-it
 
-3. **@types/node** (v20.12.7)
+3. **@types/node**
    - Node.js type definitions
 
-4. **typescript** (v5.4.5)
+4. **typescript**
    - TypeScript compiler
 
 ---
@@ -531,83 +245,35 @@ From [package.json](../package.json):
 
 ### Theme
 
-- **Dark Theme**: Deep blue/purple gradient background
-- **Color Palette**:
-  - Background: `#0f1222`
-  - Panels: `#151a2e`, `#1d2340`
-  - Text: `#f5f7ff`
-  - Accent: `#5bd0ff` (cyan), `#7cffc4` (mint)
-  - Danger: `#ff7a8a`
+- Dark theme with gradient background
+- Distinct user vs assistant message bubbles
+- Loading indicator for in-progress requests
 
-### Layout
+### UI Assets
 
-```
-┌────────────────────────────┐
-│ DEEP CODE (header)         │
-├────────────────────────────┤
-│                            │
-│  ┌──────────────────────┐  │
-│  │ User message        │  │  ← User bubble (right aligned)
-│  └──────────────────────┘  │
-│                            │
-│  ┌──────────────────────┐  │
-│  │ AI response         │  │  ← Assistant bubble (left aligned)
-│  │ with **markdown**   │  │
-│  └──────────────────────┘  │
-│                            │
-│  [●] Thinking...           │  ← Loading indicator
-├────────────────────────────┤
-│ ┌────────────────────────┐ │
-│ │ Write a prompt...      │ │  ← Textarea input
-│ │                    [→] │ │  ← Send button
-│ └────────────────────────┘ │
-└────────────────────────────┘
-```
+- HTML template: `resources/webview.html`
+- CSS styles: `resources/webview.css`
 
-### Features
+### Behaviors
 
-- **Chat Bubbles**: Distinct styling for user vs assistant messages
-- **Code Highlighting**: Syntax highlighting in code blocks
-- **Loading State**: Animated spinner during API calls
-- **Auto-Scroll**: Automatically scrolls to newest message
-- **Keyboard Shortcut**: `Cmd/Ctrl + Enter` to send message
+- Auto-scrolls to newest messages
+- Keyboard shortcut: `Cmd/Ctrl + Enter` to send
+- Session list and session switching
 
-### CSS Highlights
+### Assistant Message Bubble Types
 
-**Location**: [extension.ts:143-309](../src/extension.ts#L143-L309)
-
-- Gradient backgrounds with `radial-gradient`
-- Box shadows with RGBA transparency
-- Smooth animations for loading spinner
-- Responsive textarea with focus states
-- Modern border radius and spacing
-
----
-
-## Example Flow
-
-1. User types "What is TypeScript?" and clicks send
-2. Frontend calls `vscode.postMessage({ type: "userPrompt", prompt: "What is TypeScript?" })`
-3. Backend receives message via `onDidReceiveMessage` listener
-4. Backend calls `handlePrompt("What is TypeScript?")`
-5. Backend sends loading state: `webview.postMessage({ type: "loading", value: true })`
-6. Frontend shows loading spinner
-7. Backend calls OpenAI API and receives response
-8. Backend converts response to HTML using markdown-it
-9. Backend sends response: `webview.postMessage({ type: "assistant", html: "<p>...</p>" })`
-10. Backend sends loading state: `webview.postMessage({ type: "loading", value: false })`
-11. Frontend hides loading spinner and displays AI response bubble
+- `role === "user"`: normal user bubble
+- `role === "assistant"` and `meta.asThinking !== true`: normal assistant bubble; render `content` with Markdown
+- `role === "assistant"` and `meta.asThinking === true`: Thinking bubble; show `● Thinking (+)` with collapsed-by-default content; expand to render `content` with Markdown
+- `role === "tool"`: Tool bubble; show `● <b>${content.name}</b> ${meta.paramsMd} (+)` and expand to render `meta.resultMd` with Markdown; the dot is green when `content.ok === true`, otherwise red
 
 ---
 
 ## Summary
 
-Deep Code is a streamlined VS Code extension that demonstrates:
+Deep Code is a VS Code AI assistant extension with:
 
-- **Simple architecture**: Single-file implementation
-- **Webview communication**: Bidirectional messaging pattern
-- **API flexibility**: OpenAI-compatible endpoint support
-- **Modern UI**: Polished chat interface with animations
-- **Type safety**: Full TypeScript implementation
-
-The extension serves as an excellent reference for building VS Code AI assistants with custom backends.
+- Session-based architecture and persistent storage
+- Tool execution pipeline integrated into chat flows
+- Webview UI that communicates via structured messages
+- OpenAI-compatible API support with minimal dependencies
