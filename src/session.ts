@@ -126,8 +126,8 @@ export class SessionManager {
           continue;
         }
         results.push({
-          name: skillName,
-          path: `${displayRoot}/${skillName}/SKILL.md`
+          name: skillName.replace(/_/g, '-'),
+          path: `${displayRoot}/${skillName}/SKILL.md`,
         });
       }
       return results;
@@ -141,6 +141,19 @@ export class SessionManager {
     }
 
     return Array.from(skillsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  private resolveSkillPath(skillPath: string): string {
+    if (skillPath.startsWith("~/")) {
+      return path.join(os.homedir(), skillPath.slice(2));
+    }
+    if (skillPath.startsWith("~\\")) {
+      return path.join(os.homedir(), skillPath.slice(2));
+    }
+    if (path.isAbsolute(skillPath)) {
+      return skillPath;
+    }
+    return path.join(os.homedir(), skillPath);
   }
 
   getActiveSessionId(): string | null {
@@ -160,6 +173,20 @@ export class SessionManager {
   }
 
   async createSession(userPrompt: UserPromptContent): Promise<string> {
+    if (userPrompt.text && userPrompt.text.startsWith("/")) {
+      // like '/code-review\n', then listSkills and find skill with name 'code-review', if found, put skill into userPrompt.skills, and remove the first line from userPrompt.text
+      const lines = userPrompt.text.split("\n");
+      const firstLine = lines[0].trim();
+      if (firstLine.startsWith("/")) {
+        const skillName = firstLine.slice(1).trim();
+        const skills = await this.listSkills();
+        const matchedSkill = skills.find((skill) => skill.name === skillName);
+        if (matchedSkill) {
+          userPrompt.skills = [...(userPrompt.skills ?? []), matchedSkill];
+          userPrompt.text = lines.slice(1).join("\n").trim();
+        }
+      }
+    }
     const sessionId = crypto.randomUUID();
     const now = new Date().toISOString();
     const index = this.loadSessionsIndex();
@@ -198,6 +225,18 @@ export class SessionManager {
     const systemMessage = this.buildSystemMessage(sessionId, systemPrompt);
     this.appendSessionMessage(sessionId, systemMessage);
 
+    if (userPrompt.skills && userPrompt.skills.length > 0) {
+      for (const skill of userPrompt.skills) {
+        const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
+        const skillPrompt = `Use the skill document below to assist the user:\n
+<${skill.name}-skill path="${skill.path}">
+${skillMd}
+</${skill.name}-skill>`;
+        const skillMessage = this.buildSystemMessage(sessionId, skillPrompt);
+        this.appendSessionMessage(sessionId, skillMessage);
+      }
+    }
+
     const userMessage = this.buildUserMessage(sessionId, userPrompt);
     this.appendSessionMessage(sessionId, userMessage);
 
@@ -218,6 +257,18 @@ export class SessionManager {
     if (!updated) {
       await this.createSession(userPrompt);
       return;
+    }
+
+    if (userPrompt.skills && userPrompt.skills.length > 0) {
+      for (const skill of userPrompt.skills) {
+        const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
+        const skillPrompt = `Use the skill document below to assist the user:\n
+<${skill.name}-skill path="${skill.path}">
+${skillMd}
+</${skill.name}-skill>`;
+        const skillMessage = this.buildSystemMessage(sessionId, skillPrompt);
+        this.appendSessionMessage(sessionId, skillMessage);
+      }
     }
 
     const userMessage = this.buildUserMessage(sessionId, userPrompt);
