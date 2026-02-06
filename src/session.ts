@@ -58,6 +58,12 @@ export type SessionMessage = {
 export type UserPromptContent = {
   text?: string;
   imageUrls?: string[];
+  skills?: SkillInfo[];
+};
+
+export type SkillInfo = {
+  name: string;
+  path: string;
 };
 
 type CreateOpenAIClient = () => { client: OpenAI | null; model: string };
@@ -82,6 +88,59 @@ export class SessionManager {
     this.createOpenAIClient = options.createOpenAIClient;
     this.onAssistantMessage = options.onAssistantMessage;
     this.toolExecutor = new ToolExecutor(this.projectRoot);
+  }
+
+  async listSkills(): Promise<SkillInfo[]> {
+    const homeDir = os.homedir();
+    const claudeRoot = path.join(homeDir, ".claude", "skills");
+    const deepcodeRoot = path.join(homeDir, ".deepcode", "skills");
+    const skillsByName = new Map<string, SkillInfo>();
+
+    const collectSkills = (root: string, displayRoot: string): SkillInfo[] => {
+      if (!fs.existsSync(root)) {
+        return [];
+      }
+      let entries: fs.Dirent[] = [];
+      try {
+        entries = fs.readdirSync(root, { withFileTypes: true });
+      } catch {
+        return [];
+      }
+
+      const results: SkillInfo[] = [];
+      for (const entry of entries) {
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) {
+          continue;
+        }
+        const skillName = entry.name;
+        const skillPath = path.join(root, skillName, "SKILL.md");
+        try {
+          if (!fs.existsSync(skillPath)) {
+            continue;
+          }
+          const stat = fs.statSync(skillPath);
+          if (!stat.isFile()) {
+            continue;
+          }
+        } catch {
+          continue;
+        }
+        results.push({
+          name: skillName,
+          path: `${displayRoot}/${skillName}/SKILL.md`
+        });
+      }
+      return results;
+    };
+
+    for (const skill of collectSkills(claudeRoot, "~/.claude/skills")) {
+      skillsByName.set(skill.name, skill);
+    }
+    for (const skill of collectSkills(deepcodeRoot, "~/.deepcode/skills")) {
+      skillsByName.set(skill.name, skill);
+    }
+
+    return Array.from(skillsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
   }
 
   getActiveSessionId(): string | null {
