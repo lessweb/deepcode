@@ -155,7 +155,7 @@ body {
 
 .session-search-input:focus {
   border-color: var(--vscode-focusBorder);
-  outline: 1px solid var(--vscode-focusBorder);
+  outline: none;
 }
 
 .session-search-input::placeholder {
@@ -166,7 +166,24 @@ body {
   flex: 1;
   overflow-y: auto;
   min-height: 0;
-  padding: 12px;
+  padding: 8px 12px 12px;
+}
+
+.session-dropdown-group {
+  margin-bottom: 12px;
+}
+
+.session-dropdown-group:last-child {
+  margin-bottom: 0;
+}
+
+.session-dropdown-group-title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--vscode-descriptionForeground);
+  letter-spacing: 0.5px;
+  padding: 6px 6px 8px;
+  margin-bottom: 2px;
 }
 
 .session-dropdown-empty {

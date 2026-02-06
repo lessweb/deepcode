@@ -350,6 +350,31 @@
     });
   }
 
+  function formatSessionDate(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const sessionDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    // 计算天数差异
+    const diffTime = today.getTime() - sessionDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      return "Today";
+    } else if (diffDays === 1) {
+      return "Yesterday";
+    } else if (diffDays >= 2 && diffDays <= 7) {
+      // 显示具体的星期几
+      const weekdays = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      return weekdays[sessionDate.getDay()];
+    } else {
+      return null; // 超过7天，不显示
+    }
+  }
+
   function renderFilteredSessions(searchQuery) {
     if (!sessionDropdownList) return;
 
@@ -362,8 +387,39 @@
       return summary.includes(query);
     });
 
-    // 显示结果
-    if (filteredSessions.length === 0) {
+    // 获取今天的开始时间
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const lastWeek = new Date(today);
+    lastWeek.setDate(lastWeek.getDate() - 7);
+
+    // 按时间分组
+    const groups = {
+      today: [],
+      yesterday: [],
+      pastWeek: []
+    };
+
+    // 筛选并分组会话
+    filteredSessions.forEach((session) => {
+      const sessionDate = new Date(session.updateTime);
+      const sessionDay = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate());
+
+      if (sessionDay.getTime() === today.getTime()) {
+        groups.today.push(session);
+      } else if (sessionDay.getTime() === yesterday.getTime()) {
+        groups.yesterday.push(session);
+      } else if (sessionDay.getTime() > lastWeek.getTime() && sessionDay.getTime() < yesterday.getTime()) {
+        groups.pastWeek.push(session);
+      }
+      // 超过7天的数据不显示
+    });
+
+    // 如果没有会话
+    const totalCount = groups.today.length + groups.yesterday.length + groups.pastWeek.length;
+    if (totalCount === 0) {
       const emptyDiv = document.createElement("div");
       emptyDiv.className = "session-dropdown-empty";
       emptyDiv.textContent = query ? "No sessions found" : "No sessions yet";
@@ -371,31 +427,75 @@
       return;
     }
 
-    filteredSessions.forEach((session) => {
-      const item = document.createElement("div");
-      item.className = "session-dropdown-item";
-      if (session.id === currentSessionId) {
-        item.classList.add("active");
-      }
-      const date = new Date(session.updateTime).toLocaleString();
+    // 创建分组渲染函数
+    const renderGroup = (title, sessions) => {
+      if (sessions.length === 0) return null;
 
-      // 高亮搜索关键字
-      const summary = session.summary || "Untitled";
-      const highlightedSummary = query
-        ? summary.replace(new RegExp(`(${escapeRegExp(query)})`, 'gi'), '<mark>$1</mark>')
-        : summary;
+      const groupDiv = document.createElement("div");
+      groupDiv.className = "session-dropdown-group";
 
-      item.innerHTML = `
-        <div class="session-dropdown-summary">${highlightedSummary}</div>
-        <div class="session-dropdown-time">${date}</div>
-      `;
-      item.addEventListener("click", () => {
-        sessionDropdown.classList.remove("show");
-        sessionSelector.classList.remove("open");
-        vscode.postMessage({ type: "selectSession", sessionId: session.id });
+      const titleDiv = document.createElement("div");
+      titleDiv.className = "session-dropdown-group-title";
+      titleDiv.textContent = title;
+      groupDiv.appendChild(titleDiv);
+
+      sessions.forEach((session) => {
+        const item = document.createElement("div");
+        item.className = "session-dropdown-item";
+        if (session.id === currentSessionId) {
+          item.classList.add("active");
+        }
+
+        // 高亮搜索关键字
+        const summary = session.summary || "Untitled";
+        const highlightedSummary = query
+          ? summary.replace(new RegExp(`(${escapeRegExp(query)})`, 'gi'), '<mark>$1</mark>')
+          : summary;
+
+        item.innerHTML = `
+          <div class="session-dropdown-summary">${highlightedSummary}</div>
+          <div class="session-dropdown-time">${formatSessionTime(session.updateTime)}</div>
+        `;
+        item.addEventListener("click", () => {
+          sessionDropdown.classList.remove("show");
+          sessionSelector.classList.remove("open");
+          vscode.postMessage({ type: "selectSession", sessionId: session.id });
+        });
+        groupDiv.appendChild(item);
       });
-      sessionDropdownList.appendChild(item);
-    });
+
+      return groupDiv;
+    };
+
+    // 按顺序渲染分组
+    const todayGroup = renderGroup("Today", groups.today);
+    const yesterdayGroup = renderGroup("Yesterday", groups.yesterday);
+    const pastWeekGroup = renderGroup("Past Week", groups.pastWeek);
+
+    if (todayGroup) sessionDropdownList.appendChild(todayGroup);
+    if (yesterdayGroup) sessionDropdownList.appendChild(yesterdayGroup);
+    if (pastWeekGroup) sessionDropdownList.appendChild(pastWeekGroup);
+  }
+
+  function formatSessionTime(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sessionDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    // 计算天数差异
+    const diffTime = today.getTime() - sessionDate.getTime();
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) {
+      // 今天，显示时间
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } else {
+      // 其他天，显示月/日
+      const month = date.getMonth() + 1;
+      const day = date.getDate();
+      return `${month}/${day}`;
+    }
   }
 
   function escapeRegExp(string) {
@@ -433,7 +533,30 @@
     }
   });
 
-  promptInput.addEventListener("input", updateSendIconState);
+  // 从状态恢复输入内容
+  const savedState = vscode.getState();
+  if (savedState && savedState.promptText) {
+    promptInput.value = savedState.promptText || "";
+    updateSendIconState();
+  }
+
+  // 监听 visibilitychange 保存状态
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      vscode.setState({
+        promptText: promptInput.value
+      });
+    }
+  });
+
+  promptInput.addEventListener("input", () => {
+    updateSendIconState();
+    // 保存输入内容
+    vscode.setState({
+      promptText: promptInput.value
+    });
+  });
+
   updateSendIconState();
 
   function sendPrompt() {
@@ -454,6 +577,7 @@
 
     // 发送消息，不立即显示（等待后端返回渲染后的 HTML）
     promptInput.value = "";
+    vscode.setState({ promptText: "" });
     vscode.postMessage({ type: "userPrompt", prompt: text });
     updateSendIconState();
   }
