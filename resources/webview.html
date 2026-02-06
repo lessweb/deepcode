@@ -57,7 +57,6 @@
   const promptInput = document.getElementById("prompt");
   const sendButton = document.getElementById("send");
   const loading = document.getElementById("loading");
-  const chatContainer = document.getElementById("chatContainer");
   const sessionSelector = document.getElementById("sessionSelector");
   const sessionSelectorTitle = document.getElementById("sessionSelectorTitle");
   const sessionDropdown = document.getElementById("sessionDropdown");
@@ -71,18 +70,38 @@
   let sessionSearchInput = null;
   let sessionDropdownList = null;
   let lastMessageRole = null;
+  let currentThinkingBubble = null; // 记录当前展开的思考气泡
 
   function isProcessing() {
     return currentSessionStatus === "processing" || currentSessionStatus === "pending";
+  }
+
+  function setThinkingBubbleExpanded(bubble, expanded) {
+    if (!bubble) return;
+    const contentDiv = bubble.querySelector(".bubble-collapsible-content");
+    const toggleBtn = bubble.querySelector(".bubble-toggle");
+    
+    if (expanded) {
+      contentDiv.classList.remove("collapsed");
+      toggleBtn.classList.add("expanded");
+    } else {
+      contentDiv.classList.add("collapsed");
+      toggleBtn.classList.remove("expanded");
+    }
   }
 
   function addBubble(content, role, meta, shouldConnectToPrev = false) {
     const bubble = document.createElement("div");
     bubble.className = "bubble " + role;
 
+    // 标记思考气泡
+    if (role === "assistant" && meta && meta.asThinking === true) {
+      bubble.dataset.thinking = "true";
+    }
+
     if (role === "user") {
       // 普通用户气泡
-      bubble.innerHTML = content;
+      bubble.textContent = content;
     } else if (role === "assistant") {
       if (meta && meta.asThinking === true) {
         // 思考气泡（可折叠）
@@ -216,6 +235,10 @@
         updateConnectionLine(bubble);
       });
     }
+
+    requestAnimationFrame(() => {
+      updateAllConnectionLines();
+    });
   }
 
   function updateConnectionLine(currentBubble) {
@@ -417,6 +440,9 @@
     // 如果正在处理，则中断（不检查输入框内容）
     if (isProcessing()) {
       vscode.postMessage({ type: "interrupt" });
+      // 立即更新本地状态为 interrupted
+      currentSessionStatus = "interrupted";
+      setLoading(false, currentSessionStatus);
       return;
     }
 
@@ -458,6 +484,7 @@
   });
 
   function addMessageBubble(msg, shouldConnect) {
+    console.log("Adding message bubble:", msg);
     if (msg.role === "user") {
       addBubble(msg.html || msg.content, "user", msg.meta, false);
     } else if (msg.role === "assistant") {
@@ -509,6 +536,17 @@
         requestAnimationFrame(() => {
           updateAllConnectionLines();
         });
+        
+        // 找最后一条 asThinking 为 true 的消息并展开
+        const thinkingBubbles = messages.querySelectorAll('.bubble.assistant[data-thinking="true"]');
+        if (thinkingBubbles.length > 0) {
+          const lastThinkingBubble = thinkingBubbles[thinkingBubbles.length - 1];
+          if (currentThinkingBubble && currentThinkingBubble !== lastThinkingBubble) {
+            setThinkingBubbleExpanded(currentThinkingBubble, false);
+          }
+          setThinkingBubbleExpanded(lastThinkingBubble, true);
+          currentThinkingBubble = lastThinkingBubble;
+        }
       }
       
       // 设置会话状态
@@ -526,8 +564,8 @@
       // 更新对话列表下拉框
       updateSessionDropdown(message.sessions || []);
     } else if (message.type === "userMessage") {
-      // 显示用户消息
-      addBubble(message.html || "", "user", message.meta, false);
+      // 显示用户消息（纯文本）
+      addBubble(message.content || "", "user", message.meta, false);
     } else if (message.type === "assistant") {
       // 接收助手回复
       const shouldConnect = lastMessageRole !== null && lastMessageRole !== "user";
@@ -539,6 +577,26 @@
     } else if(message.type === "appendMessage") {
       // 新增消息
       addMessageBubble(message.message, message.shouldConnect);
+      
+      // 如果是普通 assistant 消息（不是思考），说明本轮回复已完成，标记为 completed
+      if (message.message.role === "assistant" && message.message.meta?.asThinking !== true) {
+        currentSessionStatus = "completed";
+        setLoading(false, currentSessionStatus);
+      }
+      
+      // 如果是新的 asThinking 为 true 的消息，展开最新的思考气泡
+      if (message.message.role === "assistant" && message.message.meta?.asThinking === true) {
+        // 找最后一条 thinking 气泡
+        const thinkingBubbles = messages.querySelectorAll('.bubble.assistant[data-thinking="true"]');
+        if (thinkingBubbles.length > 0) {
+          const lastThinkingBubble = thinkingBubbles[thinkingBubbles.length - 1];
+          if (currentThinkingBubble && currentThinkingBubble !== lastThinkingBubble) {
+            setThinkingBubbleExpanded(currentThinkingBubble, false);
+          }
+          setThinkingBubbleExpanded(lastThinkingBubble, true);
+          currentThinkingBubble = lastThinkingBubble;
+        }
+      }
     }
   });
 

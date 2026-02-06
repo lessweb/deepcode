@@ -201,9 +201,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
 
     const webview = this.webviewView.webview;
 
-    // 先显示用户消息
-    const userHtml = this.md.render(prompt);
-    webview.postMessage({ type: "userMessage", html: userHtml });
+    // 先显示用户消息（原始文本，不做 HTML 格式化）
+    webview.postMessage({ type: "userMessage", content: prompt });
 
     webview.postMessage({ type: "loading", value: true });
 
