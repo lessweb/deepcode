@@ -610,7 +610,7 @@
   function addMessageBubble(msg, shouldConnect) {
     console.log("Adding message bubble:", msg);
     if (msg.role === "user") {
-      addBubble(msg.html || msg.content, "user", msg.meta, false);
+      addBubble(msg.content, "user", msg.meta, false);
     } else if (msg.role === "assistant") {
       addBubble(msg.html || msg.content, "assistant", msg.meta, shouldConnect);
     } else if (msg.role === "tool") {
