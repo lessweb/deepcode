@@ -433,6 +433,8 @@ body {
   border-color: var(--vscode-panel-border);
   padding: 4px 6px;
   margin: 12px 0;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .bubble.assistant {

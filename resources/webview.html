@@ -608,7 +608,6 @@
   });
 
   function addMessageBubble(msg, shouldConnect) {
-    console.log("Adding message bubble:", msg);
     if (msg.role === "user") {
       addBubble(msg.content, "user", msg.meta, false);
     } else if (msg.role === "assistant") {
