@@ -43,6 +43,7 @@ function getRuntimeContext(projectRoot: string): string {
   const env = {
     "root path": projectRoot,
     pwd: projectRoot,
+    homedir: os.homedir(),
     "system info": uname
   };
   return `# Local Workspace Environment\n\n\`\`\`json

@@ -229,7 +229,7 @@ export class SessionManager {
       for (const skill of userPrompt.skills) {
         const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
         const skillPrompt = `Use the skill document below to assist the user:\n
-<${skill.name}-skill path="${skill.path}">
+<${skill.name}-skill path="${skill.path.replace("~", os.homedir())}">
 ${skillMd}
 </${skill.name}-skill>`;
         const skillMessage = this.buildSystemMessage(sessionId, skillPrompt);
@@ -263,7 +263,7 @@ ${skillMd}
       for (const skill of userPrompt.skills) {
         const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
         const skillPrompt = `Use the skill document below to assist the user:\n
-<${skill.name}-skill path="${skill.path}">
+<${skill.name}-skill path="${skill.path.replace("~", os.homedir())}">
 ${skillMd}
 </${skill.name}-skill>`;
         const skillMessage = this.buildSystemMessage(sessionId, skillPrompt);
