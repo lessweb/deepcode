@@ -4,7 +4,7 @@ import * as os from "os";
 import * as crypto from "crypto";
 import type OpenAI from "openai";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
-import { getSystemPrompt, getTools } from "./prompt";
+import { getCompactPrompt, getSystemPrompt, getTools } from "./prompt";
 import { ToolExecutor } from "./tools/executor";
 
 const MAX_SESSION_ENTRIES = 50;
@@ -38,6 +38,8 @@ export type MessageMeta = {
   paramsMd?: string;
   resultMd?: string;
   asThinking?: boolean;
+  isSummary?: boolean;
+  isSkill?: boolean;
 };
 
 export type SessionMessage = {
@@ -403,6 +405,67 @@ ${skillMd}
     }
   }
 
+  async compactSession(sessionId: string): Promise<void> {
+    const { client, model } = this.createOpenAIClient();
+    if (!client) {
+      return;
+    }
+    const sessionMessages = this.listSessionMessages(sessionId).filter((message) => !message.compacted);
+    if (sessionMessages.length === 0) {
+      return;
+    }
+
+    const startIndex = sessionMessages.findIndex(
+      (message) => message.role !== "system" || (message.role === "system" && message.meta?.isSummary === true)
+    );
+    if (startIndex === -1) {
+      return;
+    }
+
+    const searchStart = Math.floor(startIndex + (sessionMessages.length - startIndex) * 2 / 3);
+    let endIndex = -1;
+    for (let i = Math.max(searchStart, startIndex); i < sessionMessages.length; i += 1) {
+      if (sessionMessages[i].role !== "tool") {
+        endIndex = i;
+        break;
+      }
+    }
+    if (endIndex === -1 || endIndex <= startIndex) {
+      return;
+    }
+
+    const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
+    const response = await client.chat.completions.create({
+      model,
+      messages: [{ role: "user", content: compactPrompt }]
+    });
+    const llmResponse = response.choices?.[0]?.message?.content ?? "";
+    const compactedSummary = llmResponse.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "").trim();
+
+    const now = new Date().toISOString();
+    for (let i = startIndex; i < endIndex; i += 1) {
+      sessionMessages[i] = { ...sessionMessages[i], compacted: true, updateTime: now };
+    }
+
+    const summaryMessage: SessionMessage = {
+      id: crypto.randomUUID(),
+      sessionId,
+      role: "system",
+      content: `There are earlier parts of the conversation. Here is a summary: \n\n${compactedSummary}`,
+      contentParams: null,
+      messageParams: null,
+      compacted: false,
+      visible: false,
+      createTime: now,
+      updateTime: now,
+      meta: {
+        isSummary: true
+      }
+    };
+    sessionMessages.splice(endIndex, 0, summaryMessage);
+    this.saveSessionMessages(sessionId, sessionMessages);
+  }
+
   interruptSession(sessionId: string): void {
     const controller = this.sessionControllers.get(sessionId);
     if (controller) {
@@ -534,6 +597,13 @@ ${skillMd}
     this.ensureProjectDir();
     const messagePath = this.getSessionMessagesPath(sessionId);
     fs.appendFileSync(messagePath, `${JSON.stringify(message)}\n`, "utf8");
+  }
+
+  private saveSessionMessages(sessionId: string, messages: SessionMessage[]): void {
+    this.ensureProjectDir();
+    const messagePath = this.getSessionMessagesPath(sessionId);
+    const payload = messages.map((message) => JSON.stringify(message)).join("\n");
+    fs.writeFileSync(messagePath, payload ? `${payload}\n` : "", "utf8");
   }
 
   private updateSessionEntry(
