@@ -316,8 +316,12 @@ ${skillMd}
         }
 
         const session = this.getSession(sessionId);
-        if (session?.status === "interrupted" || session?.status === "failed") {
+        if (session == null || session.status === "interrupted" || session.status === "failed") {
           return;
+        }
+
+        if (((session.usage as { prompt_tokens: number })?.prompt_tokens || 0) > 20 * 1024) {
+          await this.compactSession(sessionId);
         }
 
         const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId));
@@ -433,6 +437,11 @@ ${skillMd}
     if (endIndex === -1 || endIndex <= startIndex) {
       return;
     }
+
+    this.onAssistantMessage(
+      this.buildAssistantMessage(sessionId, "The conversation is getting long, compacting...", null),
+      false,
+    );
 
     const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
     const response = await client.chat.completions.create({
