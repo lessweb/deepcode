@@ -685,7 +685,7 @@ ${skillMd}
       contentParams: null,
       messageParams,
       compacted: false,
-      visible: (content || "").trim() || toolCalls ? true : false,
+      visible: (content || "").trim() ? true : false,
       createTime: now,
       updateTime: now,
       meta: toolCalls ? { asThinking: true } : undefined
