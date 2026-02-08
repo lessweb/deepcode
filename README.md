@@ -19,9 +19,9 @@ Create `~/.deepcode/settings.json` with:
 ## Key Features
 
 ### **Skills**
-Deep Code supports a agent skills that allows you to extend the assistant's capabilities:
+Deep Code supports agent skills that allows you to extend the assistant's capabilities:
 
-- **Skill Discovery**: skills from `~/.claude/skills/` and `~/.deepcode/skills/` can discovered and activated.
+- **Skill Discovery**: skills from `~/.deepcode/skills/` and `~/.claude/skills/` can discovered and activated.
 
 ### **Optimized for DeepSeek**
 - Specifically tuned for DeepSeek model performance.
