@@ -320,7 +320,11 @@ ${skillMd}
           return;
         }
 
-        if (((session.usage as { prompt_tokens: number })?.prompt_tokens || 0) > 20 * 1024) {
+        if (((session.usage as { prompt_tokens: number })?.prompt_tokens || 0) > 64 * 1024) {
+          this.onAssistantMessage(
+            this.buildAssistantMessage(sessionId, "The conversation is getting long, compacting...", null),
+            false,
+          );
           await this.compactSession(sessionId);
         }
 
@@ -437,11 +441,6 @@ ${skillMd}
     if (endIndex === -1 || endIndex <= startIndex) {
       return;
     }
-
-    this.onAssistantMessage(
-      this.buildAssistantMessage(sessionId, "The conversation is getting long, compacting...", null),
-      false,
-    );
 
     const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
     const response = await client.chat.completions.create({
