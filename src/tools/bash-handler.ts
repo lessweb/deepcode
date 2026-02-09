@@ -1,9 +1,8 @@
-import { execFile, type ExecFileException } from "child_process";
-import { promisify } from "util";
+import { spawn } from "child_process";
 import type { ToolExecutionContext, ToolExecutionResult } from "./executor";
 
-const execFileAsync = promisify(execFile);
 const MAX_OUTPUT_CHARS = 30000;
+const MAX_CAPTURE_CHARS = 10 * 1024 * 1024;
 const sessionWorkingDirs = new Map<string, string>();
 
 type ToolCommandResult = {
@@ -31,31 +30,26 @@ export async function handleBashTool(
   const startCwd = getSessionCwd(context.sessionId, context.projectRoot);
   const { shellPath, shellArgs, marker } = buildShellCommand(command);
 
-  try {
-    const { stdout = "", stderr = "" } = await execFileAsync(shellPath, shellArgs, {
-      cwd: startCwd,
-      env: process.env,
-      maxBuffer: 10 * 1024 * 1024
-    });
-    const result = buildToolCommandResult(stdout, stderr, marker, 0, null);
-    updateSessionCwd(context.sessionId, startCwd, result.cwd);
-    return formatResult(result, "bash");
-  } catch (error) {
-    const execError = error as ExecFileException & { stdout?: string; stderr?: string };
-    const stdout = typeof execError.stdout === "string" ? execError.stdout : "";
-    const stderr = typeof execError.stderr === "string" ? execError.stderr : "";
-    const exitCode = typeof execError.code === "number" ? execError.code : null;
-    const signal = typeof execError.signal === "string" ? execError.signal : null;
-    const result = buildToolCommandResult(stdout, stderr, marker, exitCode, signal);
-    updateSessionCwd(context.sessionId, startCwd, result.cwd);
+  const execution = await executeShellCommand(shellPath, shellArgs, startCwd, context);
+  const result = buildToolCommandResult(
+    execution.stdout,
+    execution.stderr,
+    marker,
+    execution.exitCode,
+    execution.signal
+  );
+  updateSessionCwd(context.sessionId, startCwd, result.cwd);
 
-    const errorMessage = buildErrorMessage(execError, result.exitCode, result.signal);
+  if (execution.error || result.exitCode !== 0 || result.signal !== null) {
+    const errorMessage = buildErrorMessage(result.exitCode, result.signal, execution.error);
     return formatResult(
       { ...result, ok: false },
       "bash",
       errorMessage
     );
   }
+
+  return formatResult(result, "bash");
 }
 
 function getSessionCwd(sessionId: string, fallback: string): string {
@@ -85,8 +79,66 @@ function buildShellCommand(command: string): {
     `printf '%s%s\\n' "${marker}" "$PWD"`,
     "exit $__DEEPCODE_STATUS__"
   );
-  const wrappedCommand = wrappedParts.join("; ");
-  return { shellPath, shellArgs: ["-lc", wrappedCommand], marker };
+  const wrappedCommand = `{ ${wrappedParts.join("; ")}; } < /dev/null`;
+  return { shellPath, shellArgs: ["-c", wrappedCommand], marker };
+}
+
+async function executeShellCommand(
+  shellPath: string,
+  shellArgs: string[],
+  cwd: string,
+  context: ToolExecutionContext
+): Promise<{ stdout: string; stderr: string; exitCode: number | null; signal: string | null; error?: string }> {
+  return new Promise((resolve) => {
+    const detached = process.platform !== "win32";
+    const child = spawn(shellPath, shellArgs, {
+      cwd,
+      env: process.env,
+      detached,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    const pid = child.pid;
+    if (typeof pid === "number") {
+      context.onProcessStart?.(pid);
+    }
+
+    let stdout = "";
+    let stderr = "";
+    let error: string | undefined;
+
+    child.stdout?.on("data", (chunk: string | Buffer) => {
+      stdout = appendChunk(stdout, chunk);
+    });
+    child.stderr?.on("data", (chunk: string | Buffer) => {
+      stderr = appendChunk(stderr, chunk);
+    });
+
+    child.on("error", (spawnError) => {
+      error = spawnError.message;
+    });
+
+    child.on("close", (code, signal) => {
+      if (typeof pid === "number") {
+        context.onProcessExit?.(pid);
+      }
+      resolve({
+        stdout,
+        stderr,
+        exitCode: typeof code === "number" ? code : null,
+        signal: signal ?? null,
+        error
+      });
+    });
+  });
+}
+
+function appendChunk(existing: string, chunk: string | Buffer): string {
+  if (existing.length >= MAX_CAPTURE_CHARS) {
+    return existing;
+  }
+  const text = typeof chunk === "string" ? chunk : chunk.toString("utf8");
+  const remaining = MAX_CAPTURE_CHARS - existing.length;
+  return `${existing}${text.slice(0, remaining)}`;
 }
 
 function resolveShellPath(): string {
@@ -129,7 +181,7 @@ function buildToolCommandResult(
   const combined = joinOutput(cleanedStdout, stderr);
   const { text, truncated } = truncateOutput(combined);
   return {
-    ok: exitCode === null || exitCode === 0,
+    ok: exitCode === 0 && signal === null,
     output: text,
     cwd,
     exitCode,
@@ -178,18 +230,14 @@ function truncateOutput(output: string): { text: string; truncated: boolean } {
   return { text: output.slice(0, MAX_OUTPUT_CHARS), truncated: true };
 }
 
-function buildErrorMessage(
-  error: ExecFileException,
-  exitCode: number | null,
-  signal: string | null
-): string {
+function buildErrorMessage(exitCode: number | null, signal: string | null, error?: string): string {
   if (signal) {
     return `Command terminated by signal ${signal}.`;
   }
   if (exitCode !== null) {
     return `Command failed with exit code ${exitCode}.`;
   }
-  return error.message || "Command failed.";
+  return error || "Command failed.";
 }
 
 function formatResult(

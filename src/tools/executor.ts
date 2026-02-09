@@ -16,6 +16,13 @@ export type ToolExecutionContext = {
   sessionId: string;
   projectRoot: string;
   toolCall: ToolCall;
+  onProcessStart?: (pid: number) => void;
+  onProcessExit?: (pid: number) => void;
+};
+
+export type ToolExecutionHooks = {
+  onProcessStart?: (pid: number) => void;
+  onProcessExit?: (pid: number) => void;
 };
 
 export type ToolExecutionResult = {
@@ -45,14 +52,18 @@ export class ToolExecutor {
     this.registerToolHandlers();
   }
 
-  async executeToolCalls(sessionId: string, toolCalls: unknown[]): Promise<ToolCallExecution[]> {
+  async executeToolCalls(
+    sessionId: string,
+    toolCalls: unknown[],
+    hooks?: ToolExecutionHooks
+  ): Promise<ToolCallExecution[]> {
     const parsedCalls = toolCalls
       .map((toolCall) => this.parseToolCall(toolCall))
       .filter((toolCall): toolCall is ToolCall => Boolean(toolCall));
 
     const executions: ToolCallExecution[] = [];
     for (const toolCall of parsedCalls) {
-      const result = await this.executeToolCall(sessionId, toolCall);
+      const result = await this.executeToolCall(sessionId, toolCall, hooks);
       executions.push({
         toolCallId: toolCall.id,
         content: this.formatToolResult(result)
@@ -105,7 +116,11 @@ export class ToolExecutor {
     };
   }
 
-  private async executeToolCall(sessionId: string, toolCall: ToolCall): Promise<ToolExecutionResult> {
+  private async executeToolCall(
+    sessionId: string,
+    toolCall: ToolCall,
+    hooks?: ToolExecutionHooks
+  ): Promise<ToolExecutionResult> {
     const toolName = toolCall.function.name;
     const handler = this.toolHandlers.get(toolName);
     if (!handler) {
@@ -129,7 +144,9 @@ export class ToolExecutor {
       return await handler(parsedArgs.args, {
         sessionId,
         projectRoot: this.projectRoot,
-        toolCall
+        toolCall,
+        onProcessStart: hooks?.onProcessStart,
+        onProcessExit: hooks?.onProcessExit
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

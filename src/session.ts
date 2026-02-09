@@ -23,6 +23,7 @@ export type SessionEntry = {
   usage: unknown | null;
   createTime: string;
   updateTime: string;
+  processes: Map<string, string> | null;  // {pid: startTime}
 };
 
 export type SessionsIndex = {
@@ -203,7 +204,8 @@ export class SessionManager {
       failReason: null,
       usage: null,
       createTime: now,
-      updateTime: now
+      updateTime: now,
+      processes: null
     };
     index.entries.push(entry);
     const sortedEntries = index.entries
@@ -314,7 +316,7 @@ ${skillMd}
     this.sessionControllers.set(sessionId, controller);
 
     try {
-      const maxIterations = 30;
+      const maxIterations = 80000;  // about 1K RMB cost
       let toolCalls: unknown[] | null = null;
 
       for (let iteration = 0; iteration < maxIterations; iteration++) {
@@ -482,6 +484,24 @@ ${skillMd}
   }
 
   interruptSession(sessionId: string): void {
+    const session = this.getSession(sessionId);
+    const processIds = this.getProcessIds(session?.processes ?? null);
+    const killedPids: number[] = [];
+    const failedPids: number[] = [];
+    for (const pid of processIds) {
+      const killedGroup = this.killProcessGroup(pid);
+      if (killedGroup) {
+        killedPids.push(pid);
+        continue;
+      }
+      try {
+        process.kill(pid, "SIGKILL");
+        killedPids.push(pid);
+      } catch {
+        failedPids.push(pid);
+      }
+    }
+
     const controller = this.sessionControllers.get(sessionId);
     if (controller) {
       controller.abort();
@@ -493,11 +513,20 @@ ${skillMd}
       ...entry,
       status: "interrupted",
       failReason: "interrupted",
+      processes: null,
       updateTime: now
     }));
 
+    const contentParts = ["Interrupted."];
+    if (killedPids.length > 0) {
+      contentParts.push(`Killed processes: ${killedPids.join(", ")}.`);
+    }
+    if (failedPids.length > 0) {
+      contentParts.push(`Failed to kill processes: ${failedPids.join(", ")}.`);
+    }
+
     this.onAssistantMessage(
-      this.buildUserMessage(sessionId, { text: "Interrupted." }),
+      this.buildUserMessage(sessionId, { text: contentParts.join(" ") }),
       false,
     );
   }
@@ -568,7 +597,9 @@ ${skillMd}
     try {
       const raw = fs.readFileSync(sessionsIndexPath, "utf8");
       const parsed = JSON.parse(raw) as SessionsIndex;
-      const entries = Array.isArray(parsed.entries) ? parsed.entries : [];
+      const entries = Array.isArray(parsed.entries)
+        ? parsed.entries.map((entry) => this.normalizeSessionEntry(entry))
+        : [];
       return {
         version: 1,
         entries,
@@ -582,9 +613,12 @@ ${skillMd}
   private saveSessionsIndex(index: SessionsIndex): void {
     const { sessionsIndexPath } = this.getProjectStorage();
     this.ensureProjectDir();
-    const normalized: SessionsIndex = {
+    const normalized = {
       version: 1,
-      entries: index.entries,
+      entries: index.entries.map((entry) => ({
+        ...entry,
+        processes: this.serializeProcesses(entry.processes)
+      })),
       originalPath: this.projectRoot
     };
     fs.writeFileSync(sessionsIndexPath, JSON.stringify(normalized, null, 2), "utf8");
@@ -729,7 +763,10 @@ ${skillMd}
   }
 
   private async appendToolMessages(sessionId: string, toolCalls: unknown[]): Promise<void> {
-    const toolExecutions = await this.toolExecutor.executeToolCalls(sessionId, toolCalls);
+    const toolExecutions = await this.toolExecutor.executeToolCalls(sessionId, toolCalls, {
+      onProcessStart: (pid) => this.addSessionProcess(sessionId, pid),
+      onProcessExit: (pid) => this.removeSessionProcess(sessionId, pid)
+    });
     if (this.isInterrupted(sessionId)) {
       return;
     }
@@ -874,5 +911,114 @@ ${skillMd}
     } catch {
       return false;
     }
+  }
+
+  private addSessionProcess(sessionId: string, pid: number): void {
+    const now = new Date().toISOString();
+    this.updateSessionEntry(sessionId, (entry) => {
+      const processes = new Map(entry.processes ?? []);
+      processes.set(String(pid), now);
+      return {
+        ...entry,
+        processes,
+        updateTime: now
+      };
+    });
+  }
+
+  private removeSessionProcess(sessionId: string, pid: number): void {
+    const now = new Date().toISOString();
+    this.updateSessionEntry(sessionId, (entry) => {
+      const processes = new Map(entry.processes ?? []);
+      processes.delete(String(pid));
+      return {
+        ...entry,
+        processes: processes.size > 0 ? processes : null,
+        updateTime: now
+      };
+    });
+  }
+
+  private getProcessIds(processes: Map<string, string> | null): number[] {
+    if (!processes) {
+      return [];
+    }
+    const ids: number[] = [];
+    for (const pid of processes.keys()) {
+      const parsed = Number(pid);
+      if (Number.isInteger(parsed) && parsed > 0) {
+        ids.push(parsed);
+      }
+    }
+    return ids;
+  }
+
+  private killProcessGroup(pid: number): boolean {
+    if (process.platform === "win32") {
+      return false;
+    }
+    try {
+      process.kill(-pid, "SIGKILL");
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private normalizeSessionEntry(entry: unknown): SessionEntry {
+    const value = (entry && typeof entry === "object") ? (entry as Record<string, unknown>) : {};
+    return {
+      id: typeof value.id === "string" ? value.id : crypto.randomUUID(),
+      summary: typeof value.summary === "string" ? value.summary : null,
+      assistantReply: typeof value.assistantReply === "string" ? value.assistantReply : null,
+      assistantThinking: typeof value.assistantThinking === "string" ? value.assistantThinking : null,
+      assistantRefusal: typeof value.assistantRefusal === "string" ? value.assistantRefusal : null,
+      toolCalls: Array.isArray(value.toolCalls) ? value.toolCalls : null,
+      status: this.normalizeSessionStatus(value.status),
+      failReason: typeof value.failReason === "string" ? value.failReason : null,
+      usage: value.usage ?? null,
+      createTime: typeof value.createTime === "string" ? value.createTime : new Date().toISOString(),
+      updateTime: typeof value.updateTime === "string" ? value.updateTime : new Date().toISOString(),
+      processes: this.deserializeProcesses(value.processes)
+    };
+  }
+
+  private normalizeSessionStatus(status: unknown): SessionStatus {
+    if (
+      status === "failed" ||
+      status === "pending" ||
+      status === "processing" ||
+      status === "completed" ||
+      status === "interrupted"
+    ) {
+      return status;
+    }
+    return "pending";
+  }
+
+  private deserializeProcesses(value: unknown): Map<string, string> | null {
+    if (!value || typeof value !== "object") {
+      return null;
+    }
+    const processes = new Map<string, string>();
+    for (const [pid, startTime] of Object.entries(value as Record<string, unknown>)) {
+      if (!pid) {
+        continue;
+      }
+      const valueString = typeof startTime === "string" ? startTime : new Date().toISOString();
+      processes.set(pid, valueString);
+    }
+    return processes.size > 0 ? processes : null;
+  }
+
+  private serializeProcesses(processes: Map<string, string> | null): Record<string, string> | null {
+    if (!processes || processes.size === 0) {
+      return null;
+    }
+    const serialized: Record<string, string> = {};
+    for (const [pid, startTime] of processes.entries()) {
+      serialized[pid] = startTime;
+    }
+    return serialized;
   }
 }
