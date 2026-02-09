@@ -35,9 +35,23 @@
         <span>Thinking...</span>
       </div>
       <div class="composer">
+        <!-- Skills Popup -->
+        <div class="skills-popup" id="skillsPopup">
+          <div class="skills-popup-header">Select Skills</div>
+          <div class="skills-popup-list" id="skillsPopupList"></div>
+        </div>
         <div class="input-wrap">
           <textarea id="prompt" placeholder="Write a prompt..." rows="3"></textarea>
-          <button class="send-button" id="send" title="Send">
+          <div class="composer-footer">
+            <div class="skills-bar">
+              <button class="skills-button" id="skillsButton" title="Select Skills">
+                <svg viewBox="0 0 1102 1024" width="18" height="18" aria-hidden="true">
+                  <path d="M1080.647345 359.858716l-149.888622 86.404529v341.128546c0 12.287244-6.616208 23.629315-17.564458 30.00923l-344.594179 201.243001a38.121962 38.121962 0 0 1-38.437019 0l-344.594179-201.243001a34.813858 34.813858 0 0 1-17.564458-29.930465V446.026952L17.879515 359.858716A34.971386 34.971386 0 0 1 0 329.691957c0-12.287244 6.773737-23.70808 17.879515-30.166759L530.320596 5.025168a38.594548 38.594548 0 0 1 37.885668 0l512.441081 294.578795c11.027014 6.301151 17.879515 17.800751 17.879515 30.087994a34.971386 34.971386 0 0 1-17.879515 30.166759zM549.224048 76.149406l-441.080549 253.621316 441.080549 253.463787 441.080549-253.542552-441.080549-253.542551z m307.811211 412.331549L568.206264 654.516276a38.358255 38.358255 0 0 1-37.885668 0L241.491601 488.402191v279.377269l307.732447 179.740323 307.811211-179.740323V488.402191z m208.883146-65.847025c20.321211 0 36.782967 15.752877 36.782967 35.20768v197.698603c0 19.533567-16.540521 35.286444-36.782967 35.286444a35.995323 35.995323 0 0 1-36.782967-35.20768V457.84161c0-19.454803 16.461756-35.20768 36.782967-35.20768z" />
+                </svg>
+              </button>
+              <div class="skills-tags" id="skillsTags"></div>
+            </div>
+            <button class="send-button" id="send" title="Send">
             <svg class="send-icon" id="sendIcon" viewBox="0 0 1024 1024" aria-hidden="true">
               <path d="M242.944 512L98.090667 139.605333c-10.069333-25.898667 15.189333-50.688 40.192-41.898666l3.968 1.706666 768 384a32 32 0 0 1 4.138666 54.741334l-4.138666 2.474666-768 384c-24.874667 12.416-51.925333-10.410667-45.44-36.138666l1.28-4.096L242.944 512 98.090667 139.605333 242.944 512zM187.818667 193.706667l111.36 286.293333h282.752a32 32 0 0 1 31.701333 27.648l0.298667 4.352a32 32 0 0 1-27.690667 31.701333l-4.309333 0.298667H299.093333l-111.317333 286.293333L824.405333 512 187.776 193.706667z" />
             </svg>
@@ -63,6 +77,10 @@
   const newSessionBtn = document.getElementById("newSessionBtn");
   const sendIcon = document.getElementById("sendIcon");
   const stopIcon = document.getElementById("stopIcon");
+  const skillsButton = document.getElementById("skillsButton");
+  const skillsPopup = document.getElementById("skillsPopup");
+  const skillsPopupList = document.getElementById("skillsPopupList");
+  const skillsTags = document.getElementById("skillsTags");
 
   let currentSessionId = null;
   let currentSessionStatus = null;
@@ -71,10 +89,125 @@
   let sessionDropdownList = null;
   let lastMessageRole = null;
   let currentThinkingBubble = null; // 记录当前展开的思考气泡
+  let availableSkills = []; // 可用的技能列表
+  let selectedSkills = []; // 已选择的技能
 
   function isProcessing() {
     return currentSessionStatus === "processing" || currentSessionStatus === "pending";
   }
+
+  // Skills functions
+  function showSkillsPopup() {
+    if (skillsPopup) {
+      skillsPopup.classList.add("show");
+      // 渲染技能列表
+      renderSkillsList();
+    }
+  }
+
+  function hideSkillsPopup() {
+    if (skillsPopup) {
+      skillsPopup.classList.remove("show");
+    }
+  }
+
+  function renderSkillsList() {
+    if (!skillsPopupList) return;
+    skillsPopupList.innerHTML = "";
+
+    if (availableSkills.length === 0) {
+      skillsPopupList.innerHTML = '<div class="skills-popup-empty">No skills found</div>';
+      return;
+    }
+
+    availableSkills.forEach((skill) => {
+      const item = document.createElement("div");
+      item.className = "skills-popup-item";
+      const isSelected = selectedSkills.some((s) => s.name === skill.name);
+      if (isSelected) {
+        item.classList.add("selected");
+      }
+      item.title = skill.path; // 鼠标悬停显示完整路径
+      item.innerHTML = `
+        <span class="skills-popup-item-name" title="${escapeHtml(skill.name)}">${escapeHtml(skill.name)}</span>
+        <span class="skills-popup-item-path" title="${escapeHtml(skill.path)}">${escapeHtml(skill.path)}</span>
+      `;
+      item.addEventListener("click", () => {
+        toggleSkill(skill);
+      });
+      skillsPopupList.appendChild(item);
+    });
+  }
+
+  function toggleSkill(skill) {
+    const index = selectedSkills.findIndex((s) => s.name === skill.name);
+    if (index >= 0) {
+      selectedSkills.splice(index, 1);
+    } else {
+      selectedSkills.push(skill);
+    }
+    renderSkillsTags();
+    renderSkillsList();
+  }
+
+  function removeSkill(skillName) {
+    selectedSkills = selectedSkills.filter((s) => s.name !== skillName);
+    renderSkillsTags();
+    renderSkillsList();
+  }
+
+  function renderSkillsTags() {
+    if (!skillsTags) return;
+    // 使用 inner 容器包裹 tags，实现省略号效果
+    let inner = skillsTags.querySelector(".skills-tags-inner");
+    if (!inner) {
+      inner = document.createElement("div");
+      inner.className = "skills-tags-inner";
+      skillsTags.appendChild(inner);
+    }
+    inner.innerHTML = "";
+
+    selectedSkills.forEach((skill) => {
+      const tag = document.createElement("div");
+      tag.className = "skill-tag";
+      tag.innerHTML = `
+        <span class="skill-tag-name">${escapeHtml(skill.name)}</span>
+        <span class="skill-tag-remove">&times;</span>
+      `;
+      tag.querySelector(".skill-tag-remove").addEventListener("click", (e) => {
+        e.stopPropagation();
+        removeSkill(skill.name);
+      });
+      inner.appendChild(tag);
+    });
+  }
+
+  function updateSkillsButtonTooltip() {
+    if (skillsButton) {
+      if (availableSkills.length === 0) {
+        skillsButton.title = "skills from ~/.deepcode/skills/ and ~/.claude/skills/ can be discovered and activated.";
+      } else {
+        skillsButton.title = "Select Skills";
+      }
+    }
+  }
+
+  // 点击技能按钮
+  skillsButton?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (skillsPopup && skillsPopup.classList.contains("show")) {
+      hideSkillsPopup();
+    } else {
+      showSkillsPopup();
+    }
+  });
+
+  // 点击其他地方关闭技能弹窗
+  document.addEventListener("click", (event) => {
+    if (skillsPopup && skillsButton && !skillsPopup.contains(event.target) && !skillsButton.contains(event.target)) {
+      hideSkillsPopup();
+    }
+  });
 
   function setThinkingBubbleExpanded(bubble, expanded) {
     if (!bubble) return;
@@ -578,7 +711,14 @@
     // 发送消息，不立即显示（等待后端返回渲染后的 HTML）
     promptInput.value = "";
     vscode.setState({ promptText: "" });
-    vscode.postMessage({ type: "userPrompt", prompt: text });
+    vscode.postMessage({
+      type: "userPrompt",
+      prompt: text,
+      skills: selectedSkills.length > 0 ? selectedSkills : undefined
+    });
+    // 清空已选择的技能
+    selectedSkills = [];
+    renderSkillsTags();
     updateSendIconState();
   }
 
@@ -720,6 +860,11 @@
           currentThinkingBubble = lastThinkingBubble;
         }
       }
+    } else if (message.type === "skillsList") {
+      // 接收可用技能列表
+      availableSkills = message.skills || [];
+      console.log("Received skills list:", availableSkills);
+      updateSkillsButtonTooltip();
     }
   });
 
@@ -734,6 +879,9 @@
 
   // webview 准备就绪，请求初始数据
   vscode.postMessage({ type: "ready" });
+
+  // 请求可用技能列表
+  vscode.postMessage({ type: "requestSkills" });
 </script>
 </body>
 </html>

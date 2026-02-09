@@ -510,6 +510,7 @@ body {
 
 /* Composer */
 .composer {
+  position: relative;
   padding: 12px 16px 16px;
   background: var(--vscode-sideBar-background);
   flex-shrink: 0;
@@ -517,6 +518,20 @@ body {
 
 .input-wrap {
   position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.composer-footer {
+  display: flex;
+  width: calc(100% - 24px);
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  position: absolute;
+  bottom: 6px;
+  left: 12px;
+  right: 12px;
 }
 
 /* Textarea */
@@ -546,9 +561,6 @@ textarea::placeholder {
 
 /* Send Button */
 .send-button {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
   width: 22px;
   height: 22px;
   border-radius: 4px;
@@ -573,4 +585,174 @@ textarea::placeholder {
 
 .send-icon.empty {
   opacity: 0.6;
+}
+
+/* Skills Button */
+.skills-button {
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  background: transparent;
+  padding: 0;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.skills-button:hover {
+  opacity: 0.8;
+}
+
+.skills-button svg {
+  width: 16px;
+  height: 16px;
+  fill: var(--vscode-foreground);
+}
+
+/* Skills Popup */
+.skills-popup {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 16px;
+  right: 16px;
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  max-height: 300px;
+  overflow-y: auto;
+  z-index: 10000;
+  display: none;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.skills-popup.show {
+  display: block;
+}
+
+.skills-popup-header {
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.skills-popup-list {
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.skills-popup-empty {
+  padding: 12px;
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  font-size: 13px;
+}
+
+.skills-popup-item {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 13px;
+  transition: background 0.2s;
+  gap: 8px;
+}
+
+.skills-popup-item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.skills-popup-item.selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+
+.skills-popup-item-name {
+  flex: 0 0 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skills-popup-item-path {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vscode-descriptionForeground);
+  font-size: 12px;
+}
+
+.skills-popup-item:hover .skills-popup-item-path,
+.skills-popup-item.selected .skills-popup-item-path {
+  color: inherit;
+}
+
+/* Skills Bar (contains button and tags) */
+.skills-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% - 30px);
+}
+
+/* Skills Tags */
+.skills-tags {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  width: calc(100% - 22px); /* 减去技能按钮的宽度 */
+  gap: 6px;
+  flex: 1;
+}
+
+.skills-tags-inner{
+  width: 100%;
+  overflow: auto;
+  white-space: nowrap;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.skills-tags-inner::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+.skill-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border-radius: 4px;
+  font-size: 12px;
+  margin-right: 4px;
+}
+
+.skill-tag-name {
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.skill-tag-remove {
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.skill-tag-remove:hover {
+  opacity: 1;
 }

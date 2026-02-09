@@ -63,12 +63,19 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       if (message?.type === "ready") {
         // webview 已准备好，发送初始数据
         this.loadInitialSession();
+        // 同时请求 skills 列表
+        this.sendSkillsList();
+      } else if (message?.type === "requestSkills") {
+        // 请求 skills 列表
+        this.sendSkillsList();
       } else if (message?.type === "userPrompt") {
         const prompt = String(message.prompt || "").trim();
         if (!prompt) {
           return;
         }
-        await this.handlePrompt(prompt);
+        // 获取 skills
+        const skills = message.skills || [];
+        await this.handlePrompt(prompt, skills);
       } else if (message?.type === "interrupt") {
         // 中断当前会话
         const activeSessionId = this.sessionManager.getActiveSessionId();
@@ -194,7 +201,15 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     this.webviewView.webview.postMessage(message);
   }
 
-  private async handlePrompt(prompt: string): Promise<void> {
+  private async sendSkillsList(): Promise<void> {
+    if (!this.webviewView) {
+      return;
+    }
+    const skills = await this.sessionManager.listSkills();
+    this.sendMessage({ type: "skillsList", skills });
+  }
+
+  private async handlePrompt(prompt: string, skills?: { name: string; path: string }[]): Promise<void> {
     if (!this.webviewView) {
       return;
     }
@@ -207,7 +222,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     webview.postMessage({ type: "loading", value: true });
 
     try {
-      const userPrompt: UserPromptContent = { text: prompt };
+      const userPrompt: UserPromptContent = { text: prompt, skills };
       await this.sessionManager.handleUserPrompt(userPrompt);
 
       // 发送更新后的会话列表（可能创建了新会话）
