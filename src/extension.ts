@@ -305,10 +305,15 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     const cssPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'webview.css');
     const cssUri = webview.asWebviewUri(cssPath);
 
+    // 获取 Logo 文件 URI
+    const iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'deepcoding_icon.png');
+    const iconUri = webview.asWebviewUri(iconPath);
+
     // 替换占位符
     html = html.replace(/\{\{nonce\}\}/g, nonce);
     html = html.replace(/\{\{cspSource\}\}/g, csp);
     html = html.replace(/\{\{cssUri\}\}/g, cssUri.toString());
+    html = html.replace(/\{\{iconUri\}\}/g, iconUri.toString());
 
     return html;
   }

@@ -12,7 +12,10 @@
     <div class="header-container">
       <div class="header-left">
         <div class="session-selector" id="sessionSelector">
-          <div class="session-selector-title" id="sessionSelectorTitle">Deep Code</div>
+          <div class="session-selector-title" id="sessionSelectorTitle">
+            <img class="session-logo" src="{{iconUri}}" alt="" />
+            <span class="session-title-text" id="sessionSelectorTitleText">Deep Code</span>
+          </div>
           <svg class="session-selector-icon" viewBox="0 0 1024 1024" aria-hidden="true">
             <path d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z"></path>
           </svg>
@@ -74,6 +77,7 @@
   const loading = document.getElementById("loading");
   const sessionSelector = document.getElementById("sessionSelector");
   const sessionSelectorTitle = document.getElementById("sessionSelectorTitle");
+  const sessionSelectorTitleText = document.getElementById("sessionSelectorTitleText");
   const sessionDropdown = document.getElementById("sessionDropdown");
   const newSessionBtn = document.getElementById("newSessionBtn");
   const sendIcon = document.getElementById("sendIcon");
@@ -763,7 +767,9 @@
     if (message.type === "initializeEmpty") {
       // 初始化空聊天
       clearMessages();
-      sessionSelectorTitle.textContent = "New Conversation";
+      if (sessionSelectorTitleText) {
+        sessionSelectorTitleText.textContent = "New Conversation";
+      }
       currentSessionId = null;
       currentSessionStatus = message.status || null;
       setLoading(false, currentSessionStatus);
@@ -777,7 +783,9 @@
       // 加载已有对话
       currentSessionId = message.sessionId;
       clearMessages();
-      sessionSelectorTitle.textContent = message.summary;
+      if (sessionSelectorTitleText) {
+        sessionSelectorTitleText.textContent = message.summary;
+      }
 
       // 加载历史消息
       if (message.messages && Array.isArray(message.messages)) {
