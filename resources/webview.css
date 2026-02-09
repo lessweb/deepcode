@@ -604,6 +604,10 @@ textarea::placeholder {
   color: var(--vscode-foreground);
 }
 
+.skills-button span {
+  margin-top: 4px;
+}
+
 .skills-button:hover {
   opacity: 0.8;
 }
