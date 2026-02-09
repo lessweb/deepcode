@@ -327,6 +327,11 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(DeepcodingViewProvider.viewType, provider)
   );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("deepcoding.openView", async () => {
+      await vscode.commands.executeCommand("deepcoding.chatView.focus");
+    })
+  );
 }
 
 export function deactivate(): void {
