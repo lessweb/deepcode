@@ -589,17 +589,19 @@ textarea::placeholder {
 
 /* Skills Button */
 .skills-button {
-  width: 22px;
   height: 22px;
   border-radius: 4px;
   border: none;
   cursor: pointer;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   background: transparent;
   padding: 0;
   transition: opacity 0.2s;
   flex-shrink: 0;
+  color: var(--vscode-foreground);
 }
 
 .skills-button:hover {
@@ -700,7 +702,7 @@ textarea::placeholder {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: calc(100% - 30px);
+  width: calc(100% - 52px);
 }
 
 /* Skills Tags */
