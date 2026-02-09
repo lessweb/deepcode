@@ -41,6 +41,9 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         if (!this.webviewView) {
           return;
         }
+        if (message.visible === false) {
+          return;
+        }
         if (message.role !== "tool") {
           message.html = this.md.render(message.content || "");
         }

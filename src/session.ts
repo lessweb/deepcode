@@ -517,6 +517,8 @@ ${skillMd}
       updateTime: now
     }));
 
+    this.closePendingToolCalls(sessionId, "Interrupted by user.");
+
     const contentParts = ["Interrupted."];
     if (killedPids.length > 0) {
       contentParts.push(`Killed processes: ${killedPids.join(", ")}.`);
@@ -951,6 +953,95 @@ ${skillMd}
       }
     }
     return ids;
+  }
+
+  private closePendingToolCalls(sessionId: string, reason: string): void {
+    const messages = this.listSessionMessages(sessionId);
+    let changed = false;
+
+    for (let index = 0; index < messages.length; index += 1) {
+      const message = messages[index];
+      if (message.role !== "assistant") {
+        continue;
+      }
+
+      const messageParams = message.messageParams as { tool_calls?: unknown[] } | null;
+      const toolCalls = messageParams?.tool_calls;
+      if (!Array.isArray(toolCalls) || toolCalls.length === 0) {
+        continue;
+      }
+
+      const expectedToolCallIds = this.getExpectedToolCallIds(toolCalls);
+      if (expectedToolCallIds.length === 0) {
+        continue;
+      }
+
+      let cursor = index + 1;
+      const respondedToolCallIds = new Set<string>();
+      while (cursor < messages.length && messages[cursor].role === "tool") {
+        const toolCallId = (messages[cursor].messageParams as { tool_call_id?: unknown } | null)?.tool_call_id;
+        if (typeof toolCallId === "string" && toolCallId) {
+          respondedToolCallIds.add(toolCallId);
+        }
+        cursor += 1;
+      }
+
+      const missingToolCallIds = expectedToolCallIds.filter((toolCallId) => !respondedToolCallIds.has(toolCallId));
+      if (missingToolCallIds.length === 0) {
+        continue;
+      }
+
+      const toolMessages = missingToolCallIds.map((toolCallId) => {
+        const toolFunction = this.findToolFunction(toolCalls, toolCallId);
+        return this.buildToolMessage(
+          sessionId,
+          toolCallId,
+          this.buildInterruptedToolResult(toolFunction, reason),
+          toolFunction
+        );
+      });
+
+      messages.splice(cursor, 0, ...toolMessages);
+      changed = true;
+      index = cursor + toolMessages.length - 1;
+    }
+
+    if (changed) {
+      this.saveSessionMessages(sessionId, messages);
+    }
+  }
+
+  private getExpectedToolCallIds(toolCalls: unknown[]): string[] {
+    const ids: string[] = [];
+    for (const toolCall of toolCalls) {
+      if (!toolCall || typeof toolCall !== "object") {
+        continue;
+      }
+      const id = (toolCall as { id?: unknown }).id;
+      if (typeof id === "string" && id) {
+        ids.push(id);
+      }
+    }
+    return ids;
+  }
+
+  private buildInterruptedToolResult(toolFunction: unknown | null, reason: string): string {
+    const toolName =
+      toolFunction && typeof toolFunction === "object" && typeof (toolFunction as { name?: unknown }).name === "string"
+        ? ((toolFunction as { name: string }).name)
+        : "tool";
+    return JSON.stringify(
+      {
+        ok: false,
+        name: toolName,
+        error: reason,
+        metadata: {
+          interrupted: true
+        }
+      },
+      null,
+      2
+    );
   }
 
   private killProcessGroup(pid: number): boolean {
