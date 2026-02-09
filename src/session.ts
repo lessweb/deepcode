@@ -227,6 +227,13 @@ export class SessionManager {
     const systemMessage = this.buildSystemMessage(sessionId, systemPrompt);
     this.appendSessionMessage(sessionId, systemMessage);
 
+    const contextPath = path.join(this.projectRoot, ".deepcode", "context.md");
+    if (fs.existsSync(contextPath)) {
+      const contextMd = fs.readFileSync(contextPath, "utf8");
+      const contextMessage = this.buildSystemMessage(sessionId, contextMd);
+      this.appendSessionMessage(sessionId, contextMessage);
+    }
+
     if (userPrompt.skills && userPrompt.skills.length > 0) {
       for (const skill of userPrompt.skills) {
         const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
