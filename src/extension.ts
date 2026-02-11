@@ -329,6 +329,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.commands.registerCommand("deepcoding.openView", async () => {
+      await vscode.commands.executeCommand("workbench.view.extension.deepcoding");
       await vscode.commands.executeCommand("deepcoding.chatView.focus");
     })
   );
