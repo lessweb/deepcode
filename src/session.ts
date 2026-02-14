@@ -359,7 +359,7 @@ ${skillMd}
         if (this.isInterrupted(sessionId)) {
           return;
         }
-        const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls);
+        const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls, thinking);
         this.appendSessionMessage(sessionId, assistantMessage);
         this.onAssistantMessage(assistantMessage, true);
 
@@ -716,10 +716,18 @@ ${skillMd}
   private buildAssistantMessage(
       sessionId: string,
       content: string | null,
-      toolCalls: unknown[] | null
+      toolCalls: unknown[] | null,
+      reasoningContent?: string | null
   ): SessionMessage {
     const now = new Date().toISOString();
-    const messageParams = toolCalls ? { tool_calls: toolCalls } : null;
+    const messageParams: { tool_calls?: unknown[]; reasoning_content?: string } | null =
+      toolCalls || reasoningContent !== null ? {} : null;
+    if (toolCalls) {
+      messageParams!.tool_calls = toolCalls;
+    }
+    if (reasoningContent) {
+      messageParams!.reasoning_content = reasoningContent;
+    }
     return {
       id: crypto.randomUUID(),
       sessionId,
@@ -795,7 +803,7 @@ ${skillMd}
           } as ChatCompletionMessageParam;
 
           const messageParams = message.messageParams as
-              | { tool_calls?: unknown[]; tool_call_id?: string }
+              | { tool_calls?: unknown[]; tool_call_id?: string; reasoning_content?: string }
               | null
               | undefined;
           if (messageParams?.tool_calls) {
@@ -803,6 +811,9 @@ ${skillMd}
           }
           if (messageParams?.tool_call_id) {
             (base as { tool_call_id?: string }).tool_call_id = messageParams.tool_call_id;
+          }
+          if (messageParams?.reasoning_content && typeof messageParams?.reasoning_content === "string") {
+            (base as { reasoning_content?: string }).reasoning_content = messageParams.reasoning_content;
           }
 
           if (message.role === "user" && message.contentParams) {
