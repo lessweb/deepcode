@@ -28,7 +28,8 @@ Deep Code supports agent skills that allows you to extend the assistant's capabi
 - Reduce costs by using [Context Caching](https://api-docs.deepseek.com/guides/kv_cache).
 
 ## Supported Models
-- `deepseek-chat` (recommended)
+- `deepseek-reasoner` (thinking mode, recommended)
+- `deepseek-chat`
 - Any other OpenAI-compatible model
 
 ## FAQ: How can I move Deep Code from the left sidebar to the right (Secondary Side Bar) in VS Code?

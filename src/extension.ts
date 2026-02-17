@@ -45,7 +45,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         if (message.role !== "tool") {
-          message.html = this.md.render(message.content || "");
+          const reasoningContent = (message.messageParams as any)?.reasoning_content;
+          message.html = this.md.render(message.content || reasoningContent || "");
         }
         this.webviewView.webview.postMessage({ type: "appendMessage", message, shouldConnect });
       }
@@ -156,7 +157,9 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         .map((m) => ({
           role: m.role,
           content: m.content,
-          html: m.role !== "tool" ? this.md.render(m.content || "") : undefined,
+          html: m.role !== "tool" ? this.md.render(
+            m.content || (m.messageParams as any)?.reasoning_content || ""
+          ) : undefined,
           meta: m.meta
         }))
     });

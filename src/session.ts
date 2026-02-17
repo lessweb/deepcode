@@ -721,7 +721,7 @@ ${skillMd}
   ): SessionMessage {
     const now = new Date().toISOString();
     const messageParams: { tool_calls?: unknown[]; reasoning_content?: string } | null =
-      toolCalls || reasoningContent !== null ? {} : null;
+      toolCalls || reasoningContent ? {} : null;
     if (toolCalls) {
       messageParams!.tool_calls = toolCalls;
     }
@@ -736,7 +736,7 @@ ${skillMd}
       contentParams: null,
       messageParams,
       compacted: false,
-      visible: (content || "").trim() ? true : false,
+      visible: (content || reasoningContent || "").trim() ? true : false,
       createTime: now,
       updateTime: now,
       meta: toolCalls ? { asThinking: true } : undefined
