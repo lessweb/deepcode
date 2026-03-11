@@ -4,6 +4,11 @@ Executes a given bash command. Working directory persists between commands; shel
 
 IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.
 
+IMPORTANT: Before reaching for generic shell pipelines, prefer purpose-built CLI tools when they make the task more accurate, safer, faster, or easier to understand:
+- Use `ast-grep` when you need syntax-aware code search or structural rewrites; prefer it over plain text matching for language code.
+- Use `ripgrep` (`rg`) when you need to search file contents by text or regex across the workspace; prefer it over slower tools like `grep`.
+- Use `jq` when you need to inspect, filter, or transform JSON output; prefer it over ad-hoc parsing with `sed`, `awk`, or Python one-liners.
+
 Before executing the command, please follow these steps:
 
 1. Directory Verification:

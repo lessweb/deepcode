@@ -143,11 +143,25 @@ function getRuntimeContext(projectRoot: string): string {
     "root path": projectRoot,
     pwd: projectRoot,
     homedir: os.homedir(),
-    "system info": uname
+    "system info": uname,
+    "command installed": {
+      "ast-grep": checkToolInstalled("ast-grep"),
+      "ripgrep": checkToolInstalled("rg"),
+      "jq": checkToolInstalled("jq")
+    }
   };
   return `# Local Workspace Environment\n\n\`\`\`json
 ${JSON.stringify(env, null, 2)}
 \`\`\``;
+}
+
+function checkToolInstalled(tool: string): boolean {
+  try {
+    execSync(`command -v ${tool}`, { encoding: "utf8", stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function getUnameInfo(): string {
