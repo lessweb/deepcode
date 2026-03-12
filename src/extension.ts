@@ -10,6 +10,7 @@ type DeepcodingEnv = {
   MODEL?: string;
   BASE_URL?: string;
   API_KEY?: string;
+  THINKING_ENABLED?: boolean | string;
 };
 
 type DeepcodingSettings = {
@@ -255,16 +256,17 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private createOpenAIClient(): { client: OpenAI | null; model: string } {
+  private createOpenAIClient(): { client: OpenAI | null; model: string; thinkingEnabled?: boolean } {
     const settings = this.readSettings();
     const env = settings?.env || {};
 
     const apiKey = env.API_KEY?.trim();
     const baseURL = env.BASE_URL?.trim();
     const model = env.MODEL?.trim() || DEFAULT_MODEL;
+    const thinkingEnabled = env.THINKING_ENABLED === true || String(env.THINKING_ENABLED).toLowerCase() === "true";
 
     if (!apiKey) {
-      return { client: null, model };
+      return { client: null, model, thinkingEnabled };
     }
 
     const client = new OpenAI({
@@ -272,7 +274,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       baseURL: baseURL || undefined
     });
 
-    return { client, model };
+    return { client, model, thinkingEnabled };
   }
 
   private readSettings(): DeepcodingSettings | null {

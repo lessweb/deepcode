@@ -69,7 +69,7 @@ export type SkillInfo = {
   path: string;
 };
 
-type CreateOpenAIClient = () => { client: OpenAI | null; model: string };
+type CreateOpenAIClient = () => { client: OpenAI | null; model: string; thinkingEnabled?: boolean };
 
 type SessionManagerOptions = {
   projectRoot: string;
@@ -285,7 +285,7 @@ ${skillMd}
   }
 
   async activateSession(sessionId: string): Promise<void> {
-    const { client, model } = this.createOpenAIClient();
+    const { client, model, thinkingEnabled } = this.createOpenAIClient();
     const now = new Date().toISOString();
 
     if (!client) {
@@ -338,7 +338,9 @@ ${skillMd}
             {
               model,
               messages,
-              tools: getTools()
+              tools: getTools(),
+              // @ts-ignore
+              extra_body: thinkingEnabled ? { thinking: { type: "enabled" } } : undefined
             },
             { signal: controller.signal }
         );
@@ -419,7 +421,7 @@ ${skillMd}
   }
 
   async compactSession(sessionId: string): Promise<void> {
-    const { client, model } = this.createOpenAIClient();
+    const { client, model, thinkingEnabled } = this.createOpenAIClient();
     if (!client) {
       return;
     }
@@ -450,7 +452,9 @@ ${skillMd}
     const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
     const response = await client.chat.completions.create({
       model,
-      messages: [{ role: "user", content: compactPrompt }]
+      messages: [{ role: "user", content: compactPrompt }],
+      // @ts-ignore
+      extra_body: thinkingEnabled ? { thinking: { type: "enabled" } } : undefined
     });
     const llmResponse = response.choices?.[0]?.message?.content ?? "";
     const compactedSummary = llmResponse.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "").trim();

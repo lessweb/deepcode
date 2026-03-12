@@ -11,7 +11,8 @@ Create `~/.deepcode/settings.json` with:
   "env": {
     "MODEL": "deepseek-reasoner",
     "BASE_URL": "https://api.deepseek.com",
-    "API_KEY": "sk-..."
+    "API_KEY": "sk-...",
+    "THINKING_ENABLED": true
   }
 }
 ```
