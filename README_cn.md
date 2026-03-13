@@ -11,8 +11,7 @@
   "env": {
     "MODEL": "deepseek-reasoner",
     "BASE_URL": "https://api.deepseek.com",
-    "API_KEY": "sk-...",
-    "THINKING_ENABLED": true
+    "API_KEY": "sk-..."
   }
 }
 ```

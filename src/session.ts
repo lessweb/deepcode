@@ -340,7 +340,7 @@ ${skillMd}
               messages,
               tools: getTools(),
               // @ts-ignore
-              extra_body: thinkingEnabled ? { thinking: { type: "enabled" } } : undefined
+              thinking: thinkingEnabled ? { type: "enabled" } : undefined
             },
             { signal: controller.signal }
         );
@@ -454,7 +454,7 @@ ${skillMd}
       model,
       messages: [{ role: "user", content: compactPrompt }],
       // @ts-ignore
-      extra_body: thinkingEnabled ? { thinking: { type: "enabled" } } : undefined
+      thinking: thinkingEnabled ? { type: "enabled" } : undefined
     });
     const llmResponse = response.choices?.[0]?.message?.content ?? "";
     const compactedSummary = llmResponse.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "").trim();

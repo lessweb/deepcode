@@ -10,14 +10,15 @@ type DeepcodingEnv = {
   MODEL?: string;
   BASE_URL?: string;
   API_KEY?: string;
-  THINKING_ENABLED?: boolean | string;
+  THINKING?: string;
 };
 
 type DeepcodingSettings = {
   env?: DeepcodingEnv;
 };
 
-const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_MODEL = "deepseek-reasoner";
+const DEFAULT_BASE_URL = "https://api.deepseek.com";
 
 class DeepcodingViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "deepcoding.chatView";
@@ -261,9 +262,9 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     const env = settings?.env || {};
 
     const apiKey = env.API_KEY?.trim();
-    const baseURL = env.BASE_URL?.trim();
+    const baseURL = env.BASE_URL?.trim() || DEFAULT_BASE_URL;
     const model = env.MODEL?.trim() || DEFAULT_MODEL;
-    const thinkingEnabled = env.THINKING_ENABLED === true || String(env.THINKING_ENABLED).toLowerCase() === "true";
+    const thinkingEnabled = String(env.THINKING).toLowerCase() === "enabled";
 
     if (!apiKey) {
       return { client: null, model, thinkingEnabled };
