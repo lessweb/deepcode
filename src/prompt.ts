@@ -202,49 +202,106 @@ export function getTools(): ToolDefinition[] {
           properties: {
             command: {
               type: "string",
-              description: "The shell command to execute"
+              description: "The shell command to execute",
             },
             description: {
               type: "string",
               description:
-                "Clear, concise description of what this command does in active voice. Never use words like \"complex\" or \"risk\" in the description - just describe what it does."
-            }
+                'Clear, concise description of what this command does in active voice. Never use words like "complex" or "risk" in the description - just describe what it does.',
+            },
           },
           required: ["command"],
-          additionalProperties: false
-        }
-      }
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "AskUserQuestion",
+        description:
+          "When the task has ambiguities or multiple implementation approaches, use this tool to pause execution and ask the user a question to get clarification or make a decision.",
+        parameters: {
+          type: "object",
+          properties: {
+            questions: {
+              type: "array",
+              description:
+                "Questions to present to the user. Usually only one question is needed at a time.",
+              items: {
+                type: "object",
+                properties: {
+                  question: {
+                    type: "string",
+                    description: "The question to ask the user.",
+                  },
+                  multiSelect: {
+                    type: "boolean",
+                    description:
+                      "Whether the user may choose multiple options.",
+                  },
+                  options: {
+                    type: "array",
+                    description:
+                      "A list of predefined options for the user to choose from.",
+                    items: {
+                      type: "object",
+                      properties: {
+                        label: {
+                          type: "string",
+                          description:
+                            "The display text for the option.",
+                        },
+                        description: {
+                          type: "string",
+                          description:
+                            "A detailed explanation or hint about this option to help the user understand what happens if they choose it.",
+                        },
+                      },
+                      required: ["label"],
+                    },
+                  },
+                },
+                required: ["question", "options"],
+              },
+            },
+          },
+          required: ["questions"],
+          additionalProperties: false,
+        },
+      },
     },
     {
       type: "function",
       function: {
         name: "read",
-        description: "Read files from the filesystem (text, images, PDFs, notebooks).",
+        description:
+          "Read files from the filesystem (text, images, PDFs, notebooks).",
         parameters: {
           type: "object",
           properties: {
             file_path: {
               type: "string",
-              description: "UNIX-style path to file"
+              description: "UNIX-style path to file",
             },
             offset: {
               type: "number",
-              description: "Line number to start reading from"
+              description: "Line number to start reading from",
             },
             limit: {
               type: "number",
-              description: "Number of lines to read"
+              description: "Number of lines to read",
             },
             pages: {
               type: "string",
               description:
-                "Page range for PDF files (e.g., \"1-5\", \"3\", \"10-20\"). Only applicable to PDF files."
-            }
+                'Page range for PDF files (e.g., "1-5", "3", "10-20"). Only applicable to PDF files.',
+            },
           },
           required: ["file_path"],
-          additionalProperties: false
-        }
-      }
+          additionalProperties: false,
+        },
+      },
     },
     {
       type: "function",
@@ -256,17 +313,17 @@ export function getTools(): ToolDefinition[] {
           properties: {
             file_path: {
               type: "string",
-              description: "Absolute path to file"
+              description: "Absolute path to file",
             },
             content: {
               type: "string",
-              description: "Complete file content"
-            }
+              description: "Complete file content",
+            },
           },
           required: ["file_path", "content"],
-          additionalProperties: false
-        }
-      }
+          additionalProperties: false,
+        },
+      },
     },
     {
       type: "function",
@@ -278,26 +335,27 @@ export function getTools(): ToolDefinition[] {
           properties: {
             file_path: {
               type: "string",
-              description: "Absolute path to file"
+              description: "Absolute path to file",
             },
             old_string: {
               type: "string",
-              description: "Exact text to replace"
+              description: "Exact text to replace",
             },
             new_string: {
               type: "string",
-              description: "Replacement text (must differ from old_string)"
+              description: "Replacement text (must differ from old_string)",
             },
             replace_all: {
               type: "boolean",
-              description: "Replace all occurences of old_string (default false)",
-              default: false
-            }
+              description:
+                "Replace all occurences of old_string (default false)",
+              default: false,
+            },
           },
           required: ["file_path", "old_string", "new_string"],
-          additionalProperties: false
-        }
-      }
-    }
+          additionalProperties: false,
+        },
+      },
+    },
   ];
 }

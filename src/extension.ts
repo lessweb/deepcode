@@ -233,6 +233,16 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       const userPrompt: UserPromptContent = { text: prompt, skills };
       await this.sessionManager.handleUserPrompt(userPrompt);
 
+      const activeSessionId = this.sessionManager.getActiveSessionId();
+      const activeSession = activeSessionId ? this.sessionManager.getSession(activeSessionId) : null;
+      if (activeSessionId && activeSession) {
+        webview.postMessage({
+          type: "sessionStatus",
+          sessionId: activeSessionId,
+          status: activeSession.status
+        });
+      }
+
       // 发送更新后的会话列表（可能创建了新会话）
       const sessions = this.sessionManager.listSessions();
       const sessionsList = sessions.map((s) => ({

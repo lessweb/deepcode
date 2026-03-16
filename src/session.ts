@@ -9,7 +9,13 @@ import { ToolExecutor } from "./tools/executor";
 
 const MAX_SESSION_ENTRIES = 50;
 
-export type SessionStatus = "failed" | "pending" | "processing" | "completed" | "interrupted";
+export type SessionStatus =
+  | "failed"
+  | "pending"
+  | "processing"
+  | "waiting_for_user"
+  | "completed"
+  | "interrupted";
 
 export type SessionEntry = {
   id: string;
@@ -361,8 +367,10 @@ ${skillMd}
         this.appendSessionMessage(sessionId, assistantMessage);
         this.onAssistantMessage(assistantMessage, true);
 
+        let waitingForUser = false;
         if (toolCalls) {
-          await this.appendToolMessages(sessionId, toolCalls);
+          const toolAppendResult = await this.appendToolMessages(sessionId, toolCalls);
+          waitingForUser = toolAppendResult.waitingForUser;
         }
 
         if (this.isInterrupted(sessionId)) {
@@ -376,12 +384,22 @@ ${skillMd}
           assistantRefusal: refusal,
           toolCalls,
           usage: response.usage ?? null,
-          status: refusal ? "failed" : toolCalls ? "processing" : "completed",
+          status: refusal
+            ? "failed"
+            : waitingForUser
+              ? "waiting_for_user"
+              : toolCalls
+                ? "processing"
+                : "completed",
           failReason: refusal ? refusal : entry.failReason,
           updateTime: new Date().toISOString()
         }));
 
         if (refusal) {
+          return;
+        }
+
+        if (waitingForUser) {
           return;
         }
 
@@ -772,15 +790,22 @@ ${skillMd}
     };
   }
 
-  private async appendToolMessages(sessionId: string, toolCalls: unknown[]): Promise<void> {
+  private async appendToolMessages(
+    sessionId: string,
+    toolCalls: unknown[]
+  ): Promise<{ waitingForUser: boolean }> {
     const toolExecutions = await this.toolExecutor.executeToolCalls(sessionId, toolCalls, {
       onProcessStart: (pid) => this.addSessionProcess(sessionId, pid),
       onProcessExit: (pid) => this.removeSessionProcess(sessionId, pid)
     });
     if (this.isInterrupted(sessionId)) {
-      return;
+      return { waitingForUser: false };
     }
+    let waitingForUser = false;
     for (const execution of toolExecutions) {
+      if (execution.result.awaitUserResponse === true) {
+        waitingForUser = true;
+      }
       const toolFunction = this.findToolFunction(toolCalls, execution.toolCallId);
       const toolMessage = this.buildToolMessage(
         sessionId,
@@ -791,6 +816,7 @@ ${skillMd}
       this.appendSessionMessage(sessionId, toolMessage);
       this.onAssistantMessage(toolMessage, true);
     }
+    return { waitingForUser };
   }
 
   private buildOpenAIMessages(messages: SessionMessage[]): ChatCompletionMessageParam[] {
@@ -1090,6 +1116,7 @@ ${skillMd}
       status === "failed" ||
       status === "pending" ||
       status === "processing" ||
+      status === "waiting_for_user" ||
       status === "completed" ||
       status === "interrupted"
     ) {

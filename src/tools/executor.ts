@@ -1,3 +1,4 @@
+import { handleAskUserQuestionTool } from "./ask-user-question-handler";
 import { handleBashTool } from "./bash-handler";
 import { handleEditTool } from "./edit-handler";
 import { handleReadTool } from "./read-handler";
@@ -31,6 +32,7 @@ export type ToolExecutionResult = {
   output?: string;
   error?: string;
   metadata?: Record<string, unknown>;
+  awaitUserResponse?: boolean;
 };
 
 export type ToolHandler = (
@@ -41,6 +43,7 @@ export type ToolHandler = (
 export type ToolCallExecution = {
   toolCallId: string;
   content: string;
+  result: ToolExecutionResult;
 };
 
 export class ToolExecutor {
@@ -66,7 +69,8 @@ export class ToolExecutor {
       const result = await this.executeToolCall(sessionId, toolCall, hooks);
       executions.push({
         toolCallId: toolCall.id,
-        content: this.formatToolResult(result)
+        content: this.formatToolResult(result),
+        result
       });
     }
     return executions;
@@ -77,6 +81,7 @@ export class ToolExecutor {
     this.toolHandlers.set("read", handleReadTool);
     this.toolHandlers.set("write", handleWriteTool);
     this.toolHandlers.set("edit", handleEditTool);
+    this.toolHandlers.set("AskUserQuestion", handleAskUserQuestionTool);
   }
 
   private parseToolCall(toolCall: unknown): ToolCall | null {
@@ -193,6 +198,10 @@ export class ToolExecutor {
 
     if (result.metadata && Object.keys(result.metadata).length > 0) {
       payload.metadata = result.metadata;
+    }
+
+    if (result.awaitUserResponse === true) {
+      payload.awaitUserResponse = true;
     }
 
     return JSON.stringify(payload, null, 2);
