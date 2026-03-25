@@ -45,7 +45,7 @@ export type MessageMeta = {
   resultMd?: string;
   asThinking?: boolean;
   isSummary?: boolean;
-  skills?: SkillInfo[];
+  skill?: SkillInfo;
 };
 
 export type SessionMessage = {
@@ -280,7 +280,7 @@ ${skillMd}
 <${skill.name}-skill path="${skill.path.replace("~", os.homedir())}">
 ${skillMd}
 </${skill.name}-skill>`;
-        const skillMessage = this.buildSystemMessage(sessionId, skillPrompt);
+        const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
         this.appendSessionMessage(sessionId, skillMessage);
       }
     }
@@ -450,7 +450,7 @@ ${skillMd}
     }
 
     const startIndex = sessionMessages.findIndex(
-      (message) => message.role !== "system" || (message.role === "system" && message.meta?.isSummary === true)
+      (message) => message.role !== "system"
     );
     if (startIndex === -1) {
       return;
@@ -745,7 +745,7 @@ ${skillMd}
       visible: true,
       createTime: now,
       updateTime: now,
-      meta: { skills: [skill]},
+      meta: { skill },
     };
   }
 
