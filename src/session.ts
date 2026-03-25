@@ -45,7 +45,7 @@ export type MessageMeta = {
   resultMd?: string;
   asThinking?: boolean;
   isSummary?: boolean;
-  isSkill?: boolean;
+  skills?: SkillInfo[];
 };
 
 export type SessionMessage = {
@@ -246,7 +246,7 @@ export class SessionManager {
 <${skill.name}-skill path="${skill.path.replace("~", os.homedir())}">
 ${skillMd}
 </${skill.name}-skill>`;
-        const skillMessage = this.buildSystemMessage(sessionId, skillPrompt);
+        const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
         this.appendSessionMessage(sessionId, skillMessage);
       }
     }
@@ -729,6 +729,23 @@ ${skillMd}
       visible: false,
       createTime: now,
       updateTime: now
+    };
+  }
+
+  private buildSkillMessage(sessionId: string, content: string, skill: SkillInfo): SessionMessage {
+    const now = new Date().toISOString();
+    return {
+      id: crypto.randomUUID(),
+      sessionId,
+      role: "system",
+      content,
+      contentParams: null,
+      messageParams: null,
+      compacted: false,
+      visible: true,
+      createTime: now,
+      updateTime: now,
+      meta: { skills: [skill]},
     };
   }
 

@@ -1,10 +1,10 @@
 # Deep Code
 
-[Deep Code](https://marketplace.visualstudio.com/items?itemName=vegamo.deepcode-vscode) is an AI coding assistant extension for Visual Studio Code, specifically optimized for the latest `deepseek` model.
+[Deep Code](https://marketplace.visualstudio.com/items?itemName=vegamo.deepcode-vscode) 是 Visual Studio Code 的 AI 编码助手扩展，专门为最新的 `deepseek` 模型优化。
 
-## Configuration
+## 配置
 
-Create `~/.deepcode/settings.json` with:
+创建 `~/.deepcode/settings.json` 文件，内容如下：
 
 ```json
 {
@@ -16,29 +16,37 @@ Create `~/.deepcode/settings.json` with:
 }
 ```
 
-## Key Features
+## 主要功能
 
 ### **Skills**
-Deep Code supports agent skills that allows you to extend the assistant's capabilities:
+Deep Code 支持 agent skills，允许您扩展助手的能力：
 
-- **Skill Discovery**: skills from `~/.agents/skills/` can be discovered and activated.
+- **Skill Discovery**：可以从 `~/.agents/skills/` 目录中发现并激活 skills。
 
-### **Optimized for DeepSeek**
-- Specifically tuned for DeepSeek model performance.
-- Reduce costs by using [Context Caching](https://api-docs.deepseek.com/guides/kv_cache).
+### **为 DeepSeek 优化**
+- 专门为 DeepSeek 模型性能调优。
+- 通过使用[上下文缓存](https://api-docs.deepseek.com/guides/kv_cache)来降低成本。
 
-## Supported Models
-- `deepseek-reasoner` ([thinking mode](https://api-docs.deepseek.com/guides/kv_cache), recommended)
+## 支持的模型
+- `deepseek-reasoner`（[思考模式](https://api-docs.deepseek.com/guides/kv_cache)，推荐使用）
 - `deepseek-chat`
-- Any other OpenAI-compatible model
+- 任何其他 OpenAI 兼容模型
 
-## Screenshot
+## 截图示例
 
 ![screenshot](resources/deepcode_screenshot.png)
 
-## FAQ: How can I move Deep Code from the left sidebar to the right (Secondary Side Bar) in VS Code?
+## 常见问题：如何将 Deep Code 从左侧边栏移动到右侧边栏（Secondary Side Bar）？
 
 ![faq1](resources/faq1.gif)
 
-## Getting Help
-- Report bugs or request features on GitHub Issues (https://github.com/lessweb/deepcode/issues).
+## 获取帮助
+- 在 GitHub Issues 上报告错误或请求功能 (https://github.com/lessweb/deepcode/issues)。
+
+## 支持我们
+
+如果你觉得这个插件对你有帮助，请考虑通过以下方式支持我们：
+
+- 在 GitHub 上给我们一个 Star (https://github.com/lessweb/deepcode)
+- 向我们提交反馈和建议
+- 分享给你的朋友和同事
