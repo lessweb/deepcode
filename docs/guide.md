@@ -76,7 +76,7 @@ deepcode/
 **Location**: `src/extension.ts`
 
 - Registers `DeepcodingViewProvider` for the sidebar view
-- View type: `"deepcoding.chatView"`
+- View type: `"deepcode.chatView"`
 
 ### 2. Extension Deactivation
 

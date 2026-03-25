@@ -3,7 +3,7 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
-import { getCompactPrompt, getSystemPrompt, getTools } from "./prompt";
+import { getCompactPrompt, getSystemPrompt, getTools, AGENT_DRIFT_GUARD_SKILL } from "./prompt";
 import { ToolExecutor, type CreateOpenAIClient } from "./tools/executor";
 
 const MAX_SESSION_ENTRIES = 50;
@@ -234,6 +234,10 @@ export class SessionManager {
       const contextMessage = this.buildSystemMessage(sessionId, contextMd);
       this.appendSessionMessage(sessionId, contextMessage);
     }
+
+    const defaultSkillPrompt = `Use the skill document below to assist the user:\n<agent-drift-guard-skill>${AGENT_DRIFT_GUARD_SKILL}</agent-drift-guard-skill>`;
+    const skillMessage = this.buildSystemMessage(sessionId, defaultSkillPrompt);
+    this.appendSessionMessage(sessionId, skillMessage);
 
     if (userPrompt.skills && userPrompt.skills.length > 0) {
       for (const skill of userPrompt.skills) {

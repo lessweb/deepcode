@@ -1,6 +1,6 @@
 # Deep Code
 
-[Deep Code](https://marketplace.visualstudio.com/items?itemName=vegamo.deepcoding) is an AI coding assistant extension for Visual Studio Code, specifically optimized for the latest `deepseek` model.
+[Deep Code](https://marketplace.visualstudio.com/items?itemName=vegamo.deepcode-vscode) is an AI coding assistant extension for Visual Studio Code, specifically optimized for the latest `deepseek` model.
 
 ## Configuration
 

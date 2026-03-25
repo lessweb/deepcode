@@ -1,8 +1,8 @@
 {
-  "name": "deepcoding",
+  "name": "deepcode-vscode",
   "displayName": "Deep Code",
   "description": "Vibe coding for the latest deepseek model",
-  "version": "0.0.19",
+  "version": "0.0.21",
   "publisher": "vegamo",
   "repository": {
     "type": "git",
@@ -20,7 +20,7 @@
   "contributes": {
     "commands": [
       {
-        "command": "deepcoding.openView",
+        "command": "deepcode.openView",
         "title": "Open Deep Code",
         "icon": {
           "light": "resources/deepcoding_icon.svg",
@@ -31,16 +31,16 @@
     "viewsContainers": {
       "activitybar": [
         {
-          "id": "deepcoding",
+          "id": "deepcode",
           "title": "Deep Code",
           "icon": "resources/deepcoding_icon.png"
         }
       ]
     },
     "views": {
-      "deepcoding": [
+      "deepcode": [
         {
-          "id": "deepcoding.chatView",
+          "id": "deepcode.chatView",
           "name": "Deep Code",
           "icon": "resources/deepcoding_icon.png",
           "type": "webview"
@@ -50,7 +50,7 @@
     "menus": {
       "editor/title": [
         {
-          "command": "deepcoding.openView",
+          "command": "deepcode.openView",
           "group": "navigation@100"
         }
       ]

@@ -21,7 +21,7 @@ const DEFAULT_MODEL = "deepseek-reasoner";
 const DEFAULT_BASE_URL = "https://api.deepseek.com";
 
 class DeepcodingViewProvider implements vscode.WebviewViewProvider {
-  public static readonly viewType = "deepcoding.chatView";
+  public static readonly viewType = "deepcode.chatView";
 
   private readonly context: vscode.ExtensionContext;
   private webviewView: vscode.WebviewView | undefined;
@@ -344,9 +344,9 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.window.registerWebviewViewProvider(DeepcodingViewProvider.viewType, provider)
   );
   context.subscriptions.push(
-    vscode.commands.registerCommand("deepcoding.openView", async () => {
-      await vscode.commands.executeCommand("workbench.view.extension.deepcoding");
-      await vscode.commands.executeCommand("deepcoding.chatView.focus");
+    vscode.commands.registerCommand("deepcode.openView", async () => {
+      await vscode.commands.executeCommand("workbench.view.extension.deepcode");
+      await vscode.commands.executeCommand("deepcode.chatView.focus");
     })
   );
 }

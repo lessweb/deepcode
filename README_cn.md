@@ -1,6 +1,6 @@
 # Deep Code
 
-[Deep Code](https://marketplace.visualstudio.com/items?itemName=vegamo.deepcoding) 是 Visual Studio Code 的 AI 编码助手扩展，专门为最新的 `deepseek` 模型优化。
+[Deep Code](https://marketplace.visualstudio.com/items?itemName=vegamo.deepcode-vscode) 是 Visual Studio Code 的 AI 编码助手扩展，专门为最新的 `deepseek` 模型优化。
 
 ## 配置
 
