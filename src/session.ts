@@ -2,6 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
+import matter from "gray-matter";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
 import { getCompactPrompt, getSystemPrompt, getTools, AGENT_DRIFT_GUARD_SKILL } from "./prompt";
 import { ToolExecutor, type CreateOpenAIClient } from "./tools/executor";
@@ -72,6 +73,8 @@ export type UserPromptContent = {
 export type SkillInfo = {
   name: string;
   path: string;
+  description: string;
+  isLoaded?: boolean;
 };
 
 type SessionManagerOptions = {
@@ -96,7 +99,7 @@ export class SessionManager {
     this.toolExecutor = new ToolExecutor(this.projectRoot, this.createOpenAIClient);
   }
 
-  async listSkills(): Promise<SkillInfo[]> {
+  async listSkills(sessionId?: string): Promise<SkillInfo[]> {
     const homeDir = os.homedir();
     const agentsRoot = path.join(homeDir, ".agents", "skills");
     const skillsByName = new Map<string, SkillInfo>();
@@ -130,16 +133,25 @@ export class SessionManager {
         } catch {
           continue;
         }
-        results.push({
-          name: skillName.replace(/_/g, '-'),
-          path: `${displayRoot}/${skillName}/SKILL.md`,
-        });
+        results.push(this.readSkillInfo(skillPath, `${displayRoot}/${skillName}/SKILL.md`, skillName));
       }
       return results;
     };
 
     for (const skill of collectSkills(agentsRoot, "~/.agents/skills")) {
       skillsByName.set(skill.name, skill);
+    }
+
+    if (sessionId) {
+      const loadedSkillKeys = this.getLoadedSkillKeys(sessionId);
+      for (const skill of skillsByName.values()) {
+        if (
+          loadedSkillKeys.has(this.getSkillKey(skill))
+          || loadedSkillKeys.has(this.getSkillKeyByName(skill.name))
+        ) {
+          skill.isLoaded = true;
+        }
+      }
     }
 
     return Array.from(skillsByName.values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -156,6 +168,104 @@ export class SessionManager {
       return skillPath;
     }
     return path.join(os.homedir(), skillPath);
+  }
+
+  private readSkillInfo(skillPath: string, displayPath: string, fallbackName: string): SkillInfo {
+    const fallbackSkill: SkillInfo = {
+      name: fallbackName.replace(/_/g, "-"),
+      path: displayPath,
+      description: "",
+    };
+
+    try {
+      const skillMd = fs.readFileSync(skillPath, "utf8");
+      const parsed = matter(skillMd);
+      return {
+        name:
+          typeof parsed.data.name === "string" && parsed.data.name.trim()
+            ? parsed.data.name.trim()
+            : fallbackSkill.name,
+        path: displayPath,
+        description:
+          typeof parsed.data.description === "string"
+            ? parsed.data.description.trim()
+            : "",
+      };
+    } catch {
+      return fallbackSkill;
+    }
+  }
+
+  private getSkillKey(skill: Pick<SkillInfo, "path">): string {
+    return `path:${skill.path}`;
+  }
+
+  private getSkillKeyByName(name: string): string {
+    return `name:${name}`;
+  }
+
+  private getLoadedSkillKeys(sessionId: string): Set<string> {
+    const loadedSkillKeys = new Set<string>();
+    for (const message of this.listSessionMessages(sessionId)) {
+      if (message.role !== "system" || !message.meta?.skill) {
+        continue;
+      }
+      loadedSkillKeys.add(this.getSkillKey(message.meta.skill));
+      loadedSkillKeys.add(this.getSkillKeyByName(message.meta.skill.name));
+    }
+    return loadedSkillKeys;
+  }
+
+  private dedupeSkills(skills?: SkillInfo[]): SkillInfo[] | undefined {
+    if (!skills || skills.length === 0) {
+      return undefined;
+    }
+
+    const dedupedSkills = new Map<string, SkillInfo>();
+    for (const skill of skills) {
+      if (!skill?.name || !skill?.path) {
+        continue;
+      }
+      const key = this.getSkillKey(skill);
+      const existingSkill = dedupedSkills.get(key);
+      dedupedSkills.set(key, {
+        ...existingSkill,
+        ...skill,
+        description: skill.description ?? existingSkill?.description ?? "",
+        isLoaded: Boolean(existingSkill?.isLoaded || skill.isLoaded),
+      });
+    }
+
+    return Array.from(dedupedSkills.values());
+  }
+
+  private async normalizeSkills(skills?: SkillInfo[], sessionId?: string): Promise<SkillInfo[] | undefined> {
+    const dedupedSkills = this.dedupeSkills(skills);
+    if (!dedupedSkills || dedupedSkills.length === 0) {
+      return undefined;
+    }
+
+    const availableSkills = await this.listSkills(sessionId);
+    const availableSkillsByKey = new Map<string, SkillInfo>();
+    for (const skill of availableSkills) {
+      availableSkillsByKey.set(this.getSkillKey(skill), skill);
+      availableSkillsByKey.set(this.getSkillKeyByName(skill.name), skill);
+    }
+
+    return dedupedSkills.map((skill) => {
+      const matchedSkill =
+        availableSkillsByKey.get(this.getSkillKey(skill))
+        ?? availableSkillsByKey.get(this.getSkillKeyByName(skill.name));
+      if (!matchedSkill) {
+        return skill;
+      }
+      return {
+        ...matchedSkill,
+        ...skill,
+        description: matchedSkill.description || skill.description,
+        isLoaded: Boolean(matchedSkill.isLoaded || skill.isLoaded),
+      };
+    });
   }
 
   getActiveSessionId(): string | null {
@@ -189,6 +299,7 @@ export class SessionManager {
         }
       }
     }
+    userPrompt.skills = await this.normalizeSkills(userPrompt.skills);
     const sessionId = crypto.randomUUID();
     const now = new Date().toISOString();
     const index = this.loadSessionsIndex();
@@ -244,6 +355,9 @@ export class SessionManager {
 
     if (userPrompt.skills && userPrompt.skills.length > 0) {
       for (const skill of userPrompt.skills) {
+        if (skill.isLoaded) {
+          continue;
+        }
         const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
         const skillPrompt = `Use the skill document below to assist the user:\n
 <${skill.name}-skill path="${skill.path.replace("~", os.homedir())}">
@@ -273,11 +387,16 @@ ${skillMd}
       return;
     }
 
+    userPrompt.skills = await this.normalizeSkills(userPrompt.skills, sessionId);
+
     const userMessage = this.buildUserMessage(sessionId, userPrompt);
     this.appendSessionMessage(sessionId, userMessage);
 
     if (userPrompt.skills && userPrompt.skills.length > 0) {
       for (const skill of userPrompt.skills) {
+        if (skill.isLoaded) {
+          continue;
+        }
         const skillMd = fs.readFileSync(this.resolveSkillPath(skill.path), "utf8");
         const skillPrompt = `Use the skill document below to assist the user:\n
 <${skill.name}-skill path="${skill.path.replace("~", os.homedir())}">
@@ -745,7 +864,7 @@ ${skillMd}
       visible: true,
       createTime: now,
       updateTime: now,
-      meta: { skill },
+      meta: { skill: { ...skill, isLoaded: true } },
     };
   }
 

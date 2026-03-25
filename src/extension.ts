@@ -4,7 +4,7 @@ import * as path from "path";
 import * as os from "os";
 import OpenAI from "openai";
 import MarkdownIt from "markdown-it";
-import { SessionManager, SessionMessage, type UserPromptContent } from "./session";
+import { SessionManager, SessionMessage, type SkillInfo, type UserPromptContent } from "./session";
 
 type DeepcodingEnv = {
   MODEL?: string;
@@ -94,6 +94,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         const sessionId = String(message.sessionId || "").trim();
         if (sessionId) {
           this.loadSession(sessionId);
+          await this.sendSkillsList(sessionId);
         }
       } else if (message?.type === "backToList") {
         this.showSessionsList();
@@ -200,6 +201,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       sessions: sessionsList,
       status: null
     });
+    await this.sendSkillsList();
   }
 
   private sendMessage(message: any): void {
@@ -209,15 +211,15 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     this.webviewView.webview.postMessage(message);
   }
 
-  private async sendSkillsList(): Promise<void> {
+  private async sendSkillsList(sessionId?: string): Promise<void> {
     if (!this.webviewView) {
       return;
     }
-    const skills = await this.sessionManager.listSkills();
+    const skills = await this.sessionManager.listSkills(sessionId ?? this.sessionManager.getActiveSessionId() ?? undefined);
     this.sendMessage({ type: "skillsList", skills });
   }
 
-  private async handlePrompt(prompt: string, skills?: { name: string; path: string }[]): Promise<void> {
+  private async handlePrompt(prompt: string, skills?: SkillInfo[]): Promise<void> {
     if (!this.webviewView) {
       return;
     }
@@ -232,6 +234,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     try {
       const userPrompt: UserPromptContent = { text: prompt, skills };
       await this.sessionManager.handleUserPrompt(userPrompt);
+      await this.sendSkillsList();
 
       const activeSessionId = this.sessionManager.getActiveSessionId();
       const activeSession = activeSessionId ? this.sessionManager.getSession(activeSessionId) : null;
