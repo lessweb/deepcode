@@ -411,6 +411,7 @@ ${skillMd}
 </${skill.name}-skill>`;
         const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
         this.appendSessionMessage(sessionId, skillMessage);
+        this.onAssistantMessage(skillMessage, true);
       }
     }
 
@@ -461,6 +462,7 @@ ${skillMd}
 </${skill.name}-skill>`;
         const skillMessage = this.buildSkillMessage(sessionId, skillPrompt, skill);
         this.appendSessionMessage(sessionId, skillMessage);
+        this.onAssistantMessage(skillMessage, true);
       }
     }
     this.activeSessionId = sessionId;
