@@ -99,6 +99,55 @@ export class SessionManager {
     this.toolExecutor = new ToolExecutor(this.projectRoot, this.createOpenAIClient);
   }
 
+  async identifyMatchingSkillNames(skills: SkillInfo[], userPrompt: string): Promise<string[]> {
+    let systemPrompt = `When users ask you to perform tasks, check if any of the available skills match. Skills provide specialized capabilities and domain knowledge.\n
+Response in JSON format:
+\`\`\`
+{
+  "skillNames": ["", ...]
+}
+\`\`\`\n
+If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": []}\`.\n
+The candidate skills are as follows:\n\n`;
+    const simpleSkills = skills.filter((x) => !x.isLoaded).map((x) => {
+      return {name: x.name, description: x.description};
+    })
+    if (simpleSkills.length === 0) {
+      return [];
+    }
+    systemPrompt += "```\n" + JSON.stringify(simpleSkills, null, 2) + "\n```";
+    
+    const { client, model } = this.createOpenAIClient();
+    if (!client) {
+      return [];
+    }
+
+    try {
+      const response = await client.chat.completions.create({
+        model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        response_format: { type: "json_object" }
+      });
+      
+      const content = response.choices?.[0]?.message?.content;
+      if (!content) {
+        return [];
+      }
+
+      const parsed = JSON.parse(content);
+      if (parsed && Array.isArray(parsed.skillNames)) {
+        return parsed.skillNames;
+      }
+      
+      return [];
+    } catch (error) {
+      return [];
+    }
+  }
+
   async listSkills(sessionId?: string): Promise<SkillInfo[]> {
     const homeDir = os.homedir();
     const agentsRoot = path.join(homeDir, ".agents", "skills");
@@ -285,18 +334,15 @@ export class SessionManager {
   }
 
   async createSession(userPrompt: UserPromptContent): Promise<string> {
-    if (userPrompt.text && userPrompt.text.startsWith("/")) {
-      // like '/code-review\n', then listSkills and find skill with name 'code-review', if found, put skill into userPrompt.skills, and remove the first line from userPrompt.text
-      const lines = userPrompt.text.split("\n");
-      const firstLine = lines[0].trim();
-      if (firstLine.startsWith("/")) {
-        const skillName = firstLine.slice(1).trim();
-        const skills = await this.listSkills();
-        const matchedSkill = skills.find((skill) => skill.name === skillName);
-        if (matchedSkill) {
-          userPrompt.skills = [...(userPrompt.skills ?? []), matchedSkill];
-          userPrompt.text = lines.slice(1).join("\n").trim();
-        }
+    if (userPrompt.text) {
+      const skills = await this.listSkills();
+      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text)
+      const skillSet = new Set(skillNames);
+      const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
+      if (Array.isArray(userPrompt.skills)) {
+        userPrompt.skills.push(...matchedSkill);
+      } else if (matchedSkill.length > 0) {
+        userPrompt.skills = matchedSkill;
       }
     }
     userPrompt.skills = await this.normalizeSkills(userPrompt.skills);
@@ -387,6 +433,17 @@ ${skillMd}
       return;
     }
 
+    if (userPrompt.text) {
+      const skills = await this.listSkills(sessionId);
+      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text)
+      const skillSet = new Set(skillNames);
+      const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
+      if (Array.isArray(userPrompt.skills)) {
+        userPrompt.skills.push(...matchedSkill);
+      } else if (matchedSkill.length > 0) {
+        userPrompt.skills = matchedSkill;
+      }
+    }
     userPrompt.skills = await this.normalizeSkills(userPrompt.skills, sessionId);
 
     const userMessage = this.buildUserMessage(sessionId, userPrompt);
