@@ -2,7 +2,7 @@
   "name": "deepcode-vscode",
   "displayName": "Deep Code",
   "description": "Vibe coding for the latest deepseek model",
-  "version": "0.0.23",
+  "version": "0.0.24",
   "publisher": "vegamo",
   "repository": {
     "type": "git",
@@ -17,6 +17,15 @@
   "icon": "resources/deepcoding_icon.png",
   "activationEvents": [],
   "main": "./out/extension.js",
+  "files": [
+    "out/extension.js",
+    "resources/**",
+    "docs/tools/**",
+    "README.md",
+    "README_cn.md",
+    "README_en.md",
+    "LICENSE"
+  ],
   "contributes": {
     "commands": [
       {
@@ -57,20 +66,21 @@
     }
   },
   "scripts": {
-    "compile": "tsc -p ./",
-    "watch": "tsc -w -p ./",
+    "typecheck": "tsc -p ./ --noEmit",
+    "bundle": "esbuild ./src/extension.ts --bundle --platform=node --format=cjs --target=node18 --outfile=out/extension.js --external:vscode --sourcemap",
+    "compile": "npm run typecheck && npm run bundle",
+    "watch": "tsc -w -p ./ --noEmit",
     "vscode:prepublish": "npm run compile"
-  },
-  "dependencies": {
-    "gray-matter": "^4.0.3",
-    "ignore": "^5.3.2",
-    "markdown-it": "^14.1.1",
-    "openai": "^4.80.0"
   },
   "devDependencies": {
     "@types/markdown-it": "^14.1.1",
     "@types/node": "^20.12.7",
     "@types/vscode": "^1.85.0",
+    "esbuild": "^0.25.12",
+    "gray-matter": "^4.0.3",
+    "ignore": "^5.3.2",
+    "markdown-it": "^14.1.1",
+    "openai": "^4.80.0",
     "typescript": "^5.4.5"
   }
 }
