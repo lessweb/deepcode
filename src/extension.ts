@@ -22,7 +22,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     this.context = context;
     this.md = new MarkdownIt({
       html: false,
-      linkify: true,
+      linkify: false,
       breaks: true
     });
     this.sessionManager = new SessionManager({
