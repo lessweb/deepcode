@@ -5,17 +5,7 @@ import * as os from "os";
 import OpenAI from "openai";
 import MarkdownIt from "markdown-it";
 import { SessionManager, SessionMessage, type SkillInfo, type UserPromptContent } from "./session";
-
-type DeepcodingEnv = {
-  MODEL?: string;
-  BASE_URL?: string;
-  API_KEY?: string;
-  THINKING?: string;
-};
-
-type DeepcodingSettings = {
-  env?: DeepcodingEnv;
-};
+import { resolveSettings, type DeepcodingSettings } from "./settings";
 
 const DEFAULT_MODEL = "deepseek-reasoner";
 const DEFAULT_BASE_URL = "https://api.deepseek.com";
@@ -270,17 +260,16 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     }
   }
 
-  private createOpenAIClient(): { client: OpenAI | null; model: string; thinkingEnabled?: boolean } {
-    const settings = this.readSettings();
-    const env = settings?.env || {};
+  private createOpenAIClient(): { client: OpenAI | null; model: string; thinkingEnabled: boolean; notify?: string } {
+    const settings = resolveSettings(this.readSettings(), {
+      model: DEFAULT_MODEL,
+      baseURL: DEFAULT_BASE_URL
+    });
 
-    const apiKey = env.API_KEY?.trim();
-    const baseURL = env.BASE_URL?.trim() || DEFAULT_BASE_URL;
-    const model = env.MODEL?.trim() || DEFAULT_MODEL;
-    const thinkingEnabled = String(env.THINKING).toLowerCase() === "enabled";
+    const { apiKey, baseURL, model, thinkingEnabled, notify } = settings;
 
     if (!apiKey) {
-      return { client: null, model, thinkingEnabled };
+      return { client: null, model, thinkingEnabled, notify };
     }
 
     const client = new OpenAI({
@@ -288,7 +277,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       baseURL: baseURL || undefined
     });
 
-    return { client, model, thinkingEnabled };
+    return { client, model, thinkingEnabled, notify };
   }
 
   private readSettings(): DeepcodingSettings | null {

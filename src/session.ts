@@ -4,6 +4,7 @@ import * as os from "os";
 import * as crypto from "crypto";
 import matter from "gray-matter";
 import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
+import { launchNotifyScript } from "./notify";
 import { getCompactPrompt, getSystemPrompt, getTools, AGENT_DRIFT_GUARD_SKILL } from "./prompt";
 import { ToolExecutor, type CreateOpenAIClient } from "./tools/executor";
 
@@ -479,7 +480,8 @@ ${skillMd}
   }
 
   async activateSession(sessionId: string): Promise<void> {
-    const { client, model, thinkingEnabled } = this.createOpenAIClient();
+    const startedAt = Date.now();
+    const { client, model, thinkingEnabled, notify } = this.createOpenAIClient();
     const now = new Date().toISOString();
 
     if (!client) {
@@ -493,6 +495,7 @@ ${skillMd}
         this.buildAssistantMessage(sessionId, "OpenAI API key not found. Please configure ~/.deepcode/settings.json.", null),
         false,
       );
+      this.maybeNotifyTaskCompletion(sessionId, notify, startedAt);
       return;
     }
 
@@ -623,6 +626,7 @@ ${skillMd}
       }
     } finally {
       this.sessionControllers.delete(sessionId);
+      this.maybeNotifyTaskCompletion(sessionId, notify, startedAt);
     }
   }
 
@@ -1178,6 +1182,23 @@ ${skillMd}
     } catch {
       return false;
     }
+  }
+
+  private maybeNotifyTaskCompletion(
+    sessionId: string,
+    notifyCommand: string | undefined,
+    startedAt: number
+  ): void {
+    if (!notifyCommand) {
+      return;
+    }
+
+    const session = this.getSession(sessionId);
+    if (!session || (session.status !== "completed" && session.status !== "failed")) {
+      return;
+    }
+
+    launchNotifyScript(notifyCommand, Date.now() - startedAt, this.projectRoot);
   }
 
   private addSessionProcess(sessionId: string, pid: number): void {

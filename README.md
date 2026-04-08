@@ -12,7 +12,9 @@
     "MODEL": "deepseek-reasoner",
     "BASE_URL": "https://api.deepseek.com",
     "API_KEY": "sk-..."
-  }
+  },
+  "thinkingEnabled": true,
+  "notify": "~/.deepcode/notify.sh"
 }
 ```
 

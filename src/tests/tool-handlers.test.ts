@@ -173,7 +173,8 @@ test("Edit accepts a unique loose-escape match when only escaping differs", asyn
             }
           }
         } as any,
-        model: "test-model"
+        model: "test-model",
+        thinkingEnabled: false
       })
     })
   );

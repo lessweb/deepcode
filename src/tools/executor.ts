@@ -8,7 +8,8 @@ import { handleWriteTool } from "./write-handler";
 export type CreateOpenAIClient = () => {
   client: OpenAI | null;
   model: string;
-  thinkingEnabled?: boolean;
+  thinkingEnabled: boolean;
+  notify?: string;
 };
 
 export type ToolCall = {
