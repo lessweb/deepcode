@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} data:; style-src {{cspSource}} 'unsafe-inline'; script-src 'nonce-{{nonce}}';">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src {{cspSource}} data: blob:; style-src {{cspSource}} 'unsafe-inline'; script-src {{cspSource}} 'nonce-{{nonce}}';">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deep Code</title>
   <link rel="stylesheet" href="{{cssUri}}">
@@ -44,6 +44,7 @@
           <div class="skills-popup-list" id="skillsPopupList"></div>
         </div>
         <div class="input-wrap">
+          <div class="tools-line"></div>
           <textarea id="prompt" placeholder="Write a prompt..." rows="3"></textarea>
           <div class="composer-footer">
             <div class="skills-bar">
@@ -68,10 +69,16 @@
     </div>
   </div>
 
+<script nonce="{{nonce}}" src="{{attachmentsJsUri}}"></script>
 <script nonce="{{nonce}}">
   const vscode = acquireVsCodeApi();
+  const app = document.querySelector(".app");
   const messages = document.getElementById("messages");
+  const inputWrap = document.querySelector(".input-wrap");
+  const toolsLine = document.querySelector(".tools-line");
   const promptInput = document.getElementById("prompt");
+  const promptMinRows = Number(promptInput?.getAttribute("rows")) || 3;
+  const promptMaxRows = 10;
   const sendButton = document.getElementById("send");
   const loading = document.getElementById("loading");
   const sessionSelector = document.getElementById("sessionSelector");
@@ -85,6 +92,17 @@
   const skillsPopup = document.getElementById("skillsPopup");
   const skillsPopupList = document.getElementById("skillsPopupList");
   const skillsTags = document.getElementById("skillsTags");
+  const attachmentManager = typeof window.createPromptAttachmentManager === "function"
+    ? window.createPromptAttachmentManager({
+      promptInput,
+      inputWrap,
+      dropZone: app,
+      toolsLine,
+      onAttachmentChange: () => {
+        updateSendIconState();
+      }
+    })
+    : null;
 
   // Prompt history navigation (ArrowUp/ArrowDown)
   let inputHistory = []; // user prompts in the current session, oldest -> newest
@@ -110,6 +128,46 @@
 
   function isProcessing() {
     return isBusyStatus(currentSessionStatus);
+  }
+
+  function getPromptLineHeight() {
+    const styles = window.getComputedStyle(promptInput);
+    const lineHeight = parseFloat(styles.lineHeight);
+    if (Number.isFinite(lineHeight)) {
+      return lineHeight;
+    }
+
+    const fontSize = parseFloat(styles.fontSize) || 13;
+    return fontSize * 1.4;
+  }
+
+  function getPromptVerticalSize() {
+    const styles = window.getComputedStyle(promptInput);
+    const paddingTop = parseFloat(styles.paddingTop) || 0;
+    const paddingBottom = parseFloat(styles.paddingBottom) || 0;
+    const borderTop = parseFloat(styles.borderTopWidth) || 0;
+    const borderBottom = parseFloat(styles.borderBottomWidth) || 0;
+    return paddingTop + paddingBottom + borderTop + borderBottom;
+  }
+
+  function autoResizePrompt() {
+    if (!promptInput) {
+      return;
+    }
+
+    const lineHeight = getPromptLineHeight();
+    const verticalSize = getPromptVerticalSize();
+    const minHeight = Math.ceil(lineHeight * promptMinRows + verticalSize);
+    const maxHeight = Math.ceil(lineHeight * promptMaxRows + verticalSize);
+
+    promptInput.style.height = "auto";
+    const nextHeight = Math.min(Math.max(promptInput.scrollHeight, minHeight), maxHeight);
+    promptInput.style.height = `${nextHeight}px`;
+    promptInput.style.overflowY = promptInput.scrollHeight > maxHeight ? "auto" : "hidden";
+  }
+
+  function getAttachedImageUrls() {
+    return attachmentManager ? attachmentManager.getImageUrls() : [];
   }
 
   // Skills functions
@@ -746,7 +804,7 @@
   }
 
   function updateSendIconState() {
-    const hasContent = promptInput.value.trim().length > 0;
+    const hasContent = promptInput.value.trim().length > 0 || getAttachedImageUrls().length > 0;
     if (!isProcessing()) {
       sendIcon.classList.toggle("empty", !hasContent);
       sendButton.disabled = false;
@@ -984,6 +1042,7 @@
   const savedState = vscode.getState();
   if (savedState && savedState.promptText) {
     promptInput.value = savedState.promptText || "";
+    autoResizePrompt();
     updateSendIconState();
   }
 
@@ -997,6 +1056,7 @@
   });
 
   promptInput.addEventListener("input", () => {
+    autoResizePrompt();
     updateSendIconState();
     // 保存输入内容
     vscode.setState({
@@ -1005,21 +1065,24 @@
   });
 
   updateSendIconState();
+  autoResizePrompt();
 
-  function sendUserPromptText(text, skills) {
+  function sendUserPromptText(text, skills, imageUrls) {
     const trimmed = (text || "").trim();
-    if (!trimmed || sendButton.disabled) {
+    const normalizedImages = Array.isArray(imageUrls) ? imageUrls.filter(Boolean) : [];
+    if ((!trimmed && normalizedImages.length === 0) || sendButton.disabled) {
       return;
     }
 
     historyCursor = -1;
     draftBeforeHistory = null;
-    pendingUserPrompt = trimmed;
+    pendingUserPrompt = trimmed || (normalizedImages.length > 0 ? "粘贴的图像" : "");
 
     vscode.postMessage({
       type: "userPrompt",
       prompt: trimmed,
-      skills: skills && skills.length > 0 ? skills : undefined
+      skills: skills && skills.length > 0 ? skills : undefined,
+      images: normalizedImages.length > 0 ? normalizedImages : undefined
     });
   }
 
@@ -1035,16 +1098,19 @@
 
     // 检查输入内容
     const text = promptInput.value.trim();
-    if (!text || sendButton.disabled) {
+    const imageUrls = getAttachedImageUrls();
+    if ((!text && imageUrls.length === 0) || sendButton.disabled) {
       return;
     }
 
     // 发送消息，不立即显示（等待后端返回渲染后的 HTML）
     promptInput.value = "";
     vscode.setState({ promptText: "" });
-    sendUserPromptText(text, selectedSkills);
+    autoResizePrompt();
+    sendUserPromptText(text, selectedSkills, imageUrls);
     // 清空已选择的技能
     selectedSkills = [];
+    attachmentManager?.clear();
     renderSkillsTags();
     updateSendIconState();
   }
@@ -1063,6 +1129,8 @@
     historyCursor = -1;
     draftBeforeHistory = null;
     pendingUserPrompt = null;
+    attachmentManager?.clear();
+    autoResizePrompt();
     updateSendIconState();
   });
 
@@ -1083,6 +1151,7 @@
 
     function applyPromptValue(value, caret = "end") {
       promptInput.value = value;
+      autoResizePrompt();
       vscode.setState({ promptText: promptInput.value });
       updateSendIconState();
       promptInput.focus();
@@ -1168,6 +1237,7 @@
       }
       currentSessionId = null;
       currentSessionStatus = message.status || null;
+      attachmentManager?.clear();
       setLoading(false, currentSessionStatus);
 
       // Reset history for new conversation
@@ -1185,6 +1255,7 @@
       // 加载已有对话
       currentSessionId = message.sessionId;
       currentSessionStatus = message.status || null;
+      attachmentManager?.clear();
       clearMessages();
       if (sessionSelectorTitleText) {
         sessionSelectorTitleText.textContent = message.summary;

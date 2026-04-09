@@ -66,12 +66,15 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         this.sendSkillsList();
       } else if (message?.type === "userPrompt") {
         const prompt = String(message.prompt || "").trim();
-        if (!prompt) {
+        const images = Array.isArray(message.images)
+          ? message.images.filter((image: unknown): image is string => typeof image === "string" && image.length > 0)
+          : [];
+        if (!prompt && images.length === 0) {
           return;
         }
         // 获取 skills
         const skills = message.skills || [];
-        await this.handlePrompt(prompt, skills);
+        await this.handlePrompt(prompt, skills, images);
       } else if (message?.type === "interrupt") {
         // 中断当前会话
         const activeSessionId = this.sessionManager.getActiveSessionId();
@@ -209,20 +212,22 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     this.sendMessage({ type: "skillsList", skills });
   }
 
-  private async handlePrompt(prompt: string, skills?: SkillInfo[]): Promise<void> {
+  private async handlePrompt(prompt: string, skills?: SkillInfo[], imageUrls?: string[]): Promise<void> {
     if (!this.webviewView) {
       return;
     }
 
     const webview = this.webviewView.webview;
+    const normalizedImages = Array.isArray(imageUrls) ? imageUrls.filter(Boolean) : [];
+    const displayPrompt = prompt || (normalizedImages.length > 0 ? "粘贴的图像" : "");
 
     // 先显示用户消息（原始文本，不做 HTML 格式化）
-    webview.postMessage({ type: "userMessage", content: prompt });
+    webview.postMessage({ type: "userMessage", content: displayPrompt });
 
     webview.postMessage({ type: "loading", value: true });
 
     try {
-      const userPrompt: UserPromptContent = { text: prompt, skills };
+      const userPrompt: UserPromptContent = { text: prompt, skills, imageUrls: normalizedImages };
       await this.sessionManager.handleUserPrompt(userPrompt);
       await this.sendSkillsList();
 
@@ -315,6 +320,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     // 获取 CSS 文件 URI
     const cssPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'webview.css');
     const cssUri = webview.asWebviewUri(cssPath);
+    const attachmentsJsPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'prompt-attachments.js');
+    const attachmentsJsUri = webview.asWebviewUri(attachmentsJsPath);
 
     // 获取 Logo 文件 URI
     const iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'deepcoding_icon.png');
@@ -324,6 +331,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     html = html.replace(/\{\{nonce\}\}/g, nonce);
     html = html.replace(/\{\{cspSource\}\}/g, csp);
     html = html.replace(/\{\{cssUri\}\}/g, cssUri.toString());
+    html = html.replace(/\{\{attachmentsJsUri\}\}/g, attachmentsJsUri.toString());
     html = html.replace(/\{\{iconUri\}\}/g, iconUri.toString());
 
     return html;

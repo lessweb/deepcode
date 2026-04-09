@@ -9,6 +9,9 @@
   --danger: var(--vscode-errorForeground);
   --shadow: rgba(0, 0, 0, 0.15);
   --border-color: var(--vscode-panel-border);
+  --prompt-line-height: 18px;
+  --prompt-min-height: calc(var(--prompt-line-height) * 3 + 20px);
+  --prompt-max-height: calc(var(--prompt-line-height) * 10 + 20px);
 }
 
 /* Global Styles */
@@ -31,6 +34,7 @@ body {
   height: 100vh;
   display: flex;
   flex-direction: column;
+  position: relative;
 }
 
 /* Header Container */
@@ -686,16 +690,66 @@ body {
   position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 100px;
-  max-height: 200px;
+  min-height: calc(var(--prompt-min-height) + 34px);
   border-radius: 4px;
   border: 1px solid var(--border-color);
   background: var(--vscode-input-background);
+  transition: border-color 0.15s ease, outline-color 0.15s ease, background-color 0.15s ease;
 }
 
 .input-wrap:focus-within {
   border-color: var(--vscode-focusBorder);
   outline: 1px solid var(--vscode-focusBorder);
+}
+
+.app.drag-over .input-wrap {
+  border-color: var(--vscode-button-background);
+  outline: 1px solid var(--vscode-button-background);
+  background: var(--vscode-list-dropBackground, var(--vscode-input-background));
+}
+
+.chat-attachment-drop-overlay {
+  position: absolute;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  z-index: 2;
+  pointer-events: none;
+}
+
+.chat-attachment-drop-overlay.show {
+  display: flex;
+}
+
+.chat-attachment-drop-overlay-text {
+  padding: 12px 18px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  color: #222;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.2;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.12);
+}
+
+.tools-line {
+  display: none;
+  align-items: center;
+  gap: 8px;
+  min-height: 0;
+  padding: 0 12px;
+}
+
+.tools-line.has-attachment {
+  display: flex;
+  min-height: 34px;
+  padding: 10px 12px 0;
 }
 
 .composer-footer {
@@ -710,18 +764,18 @@ body {
 
 /* Textarea */
 textarea {
-  flex: 1;
   width: 100%;
-  min-height: 72px;
-  max-height: 172px;
+  min-height: var(--prompt-min-height);
+  max-height: var(--prompt-max-height);
   resize: none;
+  overflow-y: hidden;
   border: none;
   border-radius: 4px;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   padding: 10px 12px;
   font-size: 13px;
-  line-height: 1.4;
+  line-height: var(--prompt-line-height);
   outline: none;
   font-family: var(--vscode-font-family);
 }
@@ -732,6 +786,96 @@ textarea:focus {
 
 textarea::placeholder {
   color: var(--vscode-input-placeholderForeground);
+}
+
+.chat-attached-context-attachment {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 4px 8px 4px 4px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--vscode-editorWidget-background, var(--vscode-input-background));
+  color: var(--vscode-foreground);
+}
+
+.chat-attached-context-attachment:hover {
+  border-color: var(--vscode-focusBorder);
+}
+
+.chat-attached-context-attachment .monaco-button.codicon-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: var(--vscode-descriptionForeground);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.chat-attached-context-attachment .monaco-button.codicon-close:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+}
+
+.monaco-icon-label,
+.monaco-icon-label-container,
+.monaco-icon-name-container {
+  display: none;
+}
+
+.chat-attached-context-pill {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--vscode-editor-background);
+}
+
+.chat-attached-context-pill-image {
+  display: block;
+  width: 13px;
+  height: 13px;
+  margin: 1.5px;
+  object-fit: cover;
+  border-radius: 2px;
+}
+
+.chat-attached-context-custom-text {
+  font-size: 12px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chat-attached-context-preview {
+  position: fixed;
+  display: none;
+  padding: 8px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+  box-shadow: 0 8px 24px var(--shadow);
+  z-index: 10001;
+  pointer-events: none;
+}
+
+.chat-attached-context-preview.show {
+  display: block;
+}
+
+.chat-attached-context-preview-image {
+  display: block;
+  max-width: min(320px, 50vw);
+  max-height: min(240px, 40vh);
+  border-radius: 6px;
+  object-fit: contain;
 }
 
 /* Send Button */
