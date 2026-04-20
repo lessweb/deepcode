@@ -523,10 +523,9 @@ ${skillMd}
         }
 
         if (((session.usage as { prompt_tokens: number })?.prompt_tokens || 0) > 64 * 1024) {
-          this.onAssistantMessage(
-            this.buildAssistantMessage(sessionId, "The conversation is getting long, compacting...", null),
-            false,
-          );
+          const message = this.buildAssistantMessage(sessionId, "The conversation is getting long, compacting...", null);
+          message.meta = { asThinking: true };
+          this.onAssistantMessage(message, false);
           await this.compactSession(sessionId);
         }
 
