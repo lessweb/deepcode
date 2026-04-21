@@ -10,7 +10,7 @@ JSON schema:
   "properties": {
     "query": {
       "type": "string",
-      "description": "A complete natural-language search request passed as one argument to the configured web search script."
+      "description": "A search query phrased as a clear, specific natural language question or statement that includes key context."
     }
   },
   "required": ["query"],
