@@ -2,7 +2,7 @@
   "name": "deepcode-vscode",
   "displayName": "Deep Code",
   "description": "Vibe coding for the latest deepseek model",
-  "version": "0.0.28",
+  "version": "0.1.0",
   "publisher": "vegamo",
   "repository": {
     "type": "git",
