@@ -510,25 +510,21 @@ body {
   gap: 0;
   font-family: var(--vscode-editor-font-family);
   font-size: 12px;
-  line-height: 1.5;
-}
-
-.diff-line + .diff-line {
-  border-top: 1px solid color-mix(in srgb, var(--border-color) 60%, transparent);
+  line-height: 1.2;
 }
 
 .diff-line-marker {
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 6px 0;
+  padding: 1px 0;
   color: var(--vscode-descriptionForeground);
   user-select: none;
 }
 
 .diff-line-content {
   display: block;
-  padding: 6px 10px 6px 0;
+  padding: 1px 10px 1px 0;
   white-space: pre-wrap;
   word-break: break-word;
 }
