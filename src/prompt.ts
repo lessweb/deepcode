@@ -258,7 +258,6 @@ function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): s
   const entries = fs.readdirSync(toolsDir);
   const docs = entries
     .filter((entry) => entry.endsWith(".md"))
-    .filter((entry) => options.webSearchEnabled || entry !== "web-search.md")
     .sort()
     .map((entry) => {
       const fullPath = path.join(toolsDir, entry);
@@ -529,26 +528,24 @@ export function getTools(options: PromptToolOptions = {}): ToolDefinition[] {
     },
   ];
 
-  if (options.webSearchEnabled) {
-    tools.push({
-      type: "function",
-      function: {
-        name: "WebSearch",
-        description: "Perform web searching using a natural language query.",
-        parameters: {
-          type: "object",
-          properties: {
-            query: {
-              type: "string",
-              description: "A search query phrased as a clear, specific natural language question or statement that includes key context.",
-            },
+  tools.push({
+    type: "function",
+    function: {
+      name: "WebSearch",
+      description: "Perform web searching using a natural language query.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: {
+            type: "string",
+            description: "A search query phrased as a clear, specific natural language question or statement that includes key context.",
           },
-          required: ["query"],
-          additionalProperties: false,
         },
+        required: ["query"],
+        additionalProperties: false,
       },
-    });
-  }
+    },
+  });
 
   return tools;
 }

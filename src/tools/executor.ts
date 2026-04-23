@@ -28,13 +28,13 @@ export type ToolExecutionContext = {
   projectRoot: string;
   toolCall: ToolCall;
   createOpenAIClient?: CreateOpenAIClient;
-  onProcessStart?: (pid: number, command: string) => void;
-  onProcessExit?: (pid: number) => void;
+  onProcessStart?: (processId: string | number, command: string) => void;
+  onProcessExit?: (processId: string | number) => void;
 };
 
 export type ToolExecutionHooks = {
-  onProcessStart?: (pid: number, command: string) => void;
-  onProcessExit?: (pid: number) => void;
+  onProcessStart?: (processId: string | number, command: string) => void;
+  onProcessExit?: (processId: string | number) => void;
 };
 
 export type ToolExecutionResult = {

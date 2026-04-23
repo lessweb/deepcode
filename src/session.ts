@@ -700,7 +700,7 @@ ${skillMd}
 
   private getPromptToolOptions(): { webSearchEnabled: boolean } {
     return {
-      webSearchEnabled: Boolean(this.getResolvedSettings().webSearchTool)
+      webSearchEnabled: true
     };
   }
 
@@ -1235,11 +1235,11 @@ ${skillMd}
     launchNotifyScript(notifyCommand, Date.now() - startedAt, this.projectRoot);
   }
 
-  private addSessionProcess(sessionId: string, pid: number, command: string): void {
+  private addSessionProcess(sessionId: string, processId: string | number, command: string): void {
     const now = new Date().toISOString();
     this.updateSessionEntry(sessionId, (entry) => {
       const processes = new Map(entry.processes ?? []);
-      processes.set(String(pid), { startTime: now, command });
+      processes.set(String(processId), { startTime: now, command });
       return {
         ...entry,
         processes,
@@ -1248,11 +1248,11 @@ ${skillMd}
     });
   }
 
-  private removeSessionProcess(sessionId: string, pid: number): void {
+  private removeSessionProcess(sessionId: string, processId: string | number): void {
     const now = new Date().toISOString();
     this.updateSessionEntry(sessionId, (entry) => {
       const processes = new Map(entry.processes ?? []);
-      processes.delete(String(pid));
+      processes.delete(String(processId));
       return {
         ...entry,
         processes: processes.size > 0 ? processes : null,
