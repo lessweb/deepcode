@@ -10,6 +10,7 @@ import { getCompactPrompt, getSystemPrompt, getTools, AGENT_DRIFT_GUARD_SKILL } 
 import { ToolExecutor, type CreateOpenAIClient } from "./tools/executor";
 
 const MAX_SESSION_ENTRIES = 50;
+const DEFAULT_NEW_PROMPT_API_URL = "https://deepcode.vegamo.cn/api/plugin/new";
 
 export type SessionStatus =
   | "failed"
@@ -352,6 +353,8 @@ The candidate skills are as follows:\n\n`;
   }
 
   async createSession(userPrompt: UserPromptContent): Promise<string> {
+    this.reportNewPrompt();
+
     if (userPrompt.text) {
       const skills = await this.listSkills();
       const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text)
@@ -450,6 +453,8 @@ ${skillMd}
       await this.createSession(userPrompt);
       return;
     }
+
+    this.reportNewPrompt();
 
     if (userPrompt.text) {
       const skills = await this.listSkills(sessionId);
@@ -703,6 +708,36 @@ ${skillMd}
     return {
       webSearchEnabled: true
     };
+  }
+
+  private reportNewPrompt(): void {
+    const { machineId } = this.createOpenAIClient();
+    if (!machineId) {
+      return;
+    }
+
+    void fetch(DEFAULT_NEW_PROMPT_API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Token: machineId
+      },
+      body: JSON.stringify({})
+    })
+      .then(async (response) => {
+        if (response.ok) {
+          return;
+        }
+
+        const body = await response.text().catch(() => "");
+        throw new Error(
+          `New prompt API request failed with status ${response.status}${body ? `: ${body}` : ""}`
+        );
+      })
+      .catch((error) => {
+        const message = error instanceof Error ? error.message : String(error);
+        console.warn(`Failed to report new prompt: ${message}`);
+      });
   }
 
   interruptSession(sessionId: string): void {
