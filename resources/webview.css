@@ -818,6 +818,7 @@ body {
   justify-content: space-between;
   gap: 8px;
   padding: 6px 12px;
+  position: relative;
 }
 
 /* Textarea */
@@ -944,6 +945,99 @@ textarea::placeholder {
   display: grid;
   place-items: center;
   background: transparent;
+}
+
+.context-meter {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  z-index: 3;
+}
+
+.context-meter-ring {
+  --context-percent: 0%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at center, var(--vscode-input-background) 48%, transparent 50%),
+    conic-gradient(
+      var(--vscode-descriptionForeground) 0 var(--context-percent),
+      var(--vscode-editorWidget-border, var(--vscode-panel-border)) var(--context-percent) 100%
+    );
+}
+
+.context-meter:hover .context-meter-ring {
+  filter: brightness(1.1);
+}
+
+.context-meter-tooltip {
+  position: fixed;
+  left: 16px;
+  bottom: calc(100% + 10px);
+  display: none;
+  width: min(360px, calc(100vw - 32px));
+  max-height: min(420px, 70vh);
+  overflow: auto;
+  padding: 12px 14px;
+  border: 1px solid var(--vscode-editorHoverWidget-border, var(--border-color));
+  border-radius: 12px;
+  background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background));
+  color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground));
+  box-shadow: 0 8px 24px var(--shadow);
+  font-size: 12px;
+  line-height: 1.4;
+  pointer-events: none;
+  z-index: 10002;
+}
+
+.context-meter:hover .context-meter-tooltip {
+  display: block;
+}
+
+.context-tooltip-title {
+  text-align: center;
+  color: var(--vscode-descriptionForeground);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.context-tooltip-summary {
+  text-align: center;
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.context-tooltip-section {
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-color);
+  color: var(--vscode-descriptionForeground);
+  font-weight: 600;
+}
+
+.context-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.context-tooltip-label {
+  min-width: 0;
+  color: var(--vscode-descriptionForeground);
+  overflow-wrap: anywhere;
+}
+
+.context-tooltip-value {
+  max-width: 55%;
+  text-align: right;
+  font-family: var(--vscode-editor-font-family);
+  overflow-wrap: anywhere;
 }
 
 .send-button:disabled {
@@ -1106,9 +1200,9 @@ textarea::placeholder {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  width: calc(100% - 22px); /* 减去技能按钮的宽度 */
   gap: 6px;
   flex: 1;
+  min-width: 0;
 }
 
 .skills-tags-inner{

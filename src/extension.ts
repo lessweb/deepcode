@@ -4,7 +4,14 @@ import * as path from "path";
 import * as os from "os";
 import OpenAI from "openai";
 import MarkdownIt from "markdown-it";
-import { SessionManager, SessionMessage, type SkillInfo, type UserPromptContent } from "./session";
+import {
+  SessionManager,
+  SessionMessage,
+  getCompactPromptTokenThreshold,
+  type SessionEntry,
+  type SkillInfo,
+  type UserPromptContent
+} from "./session";
 import { resolveSettings, type DeepcodingSettings, type ReasoningEffort } from "./settings";
 
 const DEFAULT_MODEL = "deepseek-v4-pro";
@@ -51,7 +58,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
           type: "sessionStatus",
           sessionId: entry.id,
           status: entry.status,
-          processes: this.serializeProcesses(entry.processes)
+          processes: this.serializeProcesses(entry.processes),
+          tokenTelemetry: this.buildTokenTelemetry(entry)
         });
       }
     });
@@ -128,7 +136,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       this.sendMessage({
         type: "initializeEmpty",
         sessions: sessionsList,
-        status: null
+        status: null,
+        tokenTelemetry: this.buildTokenTelemetry(null)
       });
       return;
     }
@@ -166,6 +175,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       summary: session.summary || "Untitled",
       status: session.status,
       processes: this.serializeProcesses(session.processes),
+      tokenTelemetry: this.buildTokenTelemetry(session),
       sessions: sessionsList,
       messages: messages
         .filter((m) => m.visible)
@@ -211,7 +221,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     this.sendMessage({
       type: "initializeEmpty",
       sessions: sessionsList,
-      status: null
+      status: null,
+      tokenTelemetry: this.buildTokenTelemetry(null)
     });
     await this.sendSkillsList();
   }
@@ -257,7 +268,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
           type: "sessionStatus",
           sessionId: activeSessionId,
           status: activeSession.status,
-          processes: this.serializeProcesses(activeSession.processes)
+          processes: this.serializeProcesses(activeSession.processes),
+          tokenTelemetry: this.buildTokenTelemetry(activeSession)
         });
       }
 
@@ -319,6 +331,25 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     });
 
     return { client, model, baseURL, thinkingEnabled, reasoningEffort, notify, webSearchTool, machineId };
+  }
+
+  private buildTokenTelemetry(session: SessionEntry | null): {
+    model: string;
+    thinkingEnabled: boolean;
+    reasoningEffort: ReasoningEffort;
+    activeTokens: number;
+    compactPromptTokenThreshold: number;
+    usage: unknown | null;
+  } {
+    const settings = this.resolveCurrentSettings();
+    return {
+      model: settings.model,
+      thinkingEnabled: settings.thinkingEnabled,
+      reasoningEffort: settings.reasoningEffort,
+      activeTokens: session?.activeTokens ?? 0,
+      compactPromptTokenThreshold: getCompactPromptTokenThreshold(settings.model),
+      usage: session?.usage ?? null
+    };
   }
 
   private resolveCurrentSettings() {

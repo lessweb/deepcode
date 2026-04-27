@@ -54,6 +54,10 @@
                 </svg>
                 <span>Skill</span>
               </button>
+              <div class="context-meter" id="contextMeter" aria-label="Context usage">
+                <div class="context-meter-ring" id="contextMeterRing"></div>
+                <div class="context-meter-tooltip" id="contextMeterTooltip" role="tooltip"></div>
+              </div>
               <div class="skills-tags" id="skillsTags"></div>
             </div>
             <button class="send-button" id="send" title="Send">
@@ -93,6 +97,9 @@
   const skillsPopup = document.getElementById("skillsPopup");
   const skillsPopupList = document.getElementById("skillsPopupList");
   const skillsTags = document.getElementById("skillsTags");
+  const contextMeter = document.getElementById("contextMeter");
+  const contextMeterRing = document.getElementById("contextMeterRing");
+  const contextMeterTooltip = document.getElementById("contextMeterTooltip");
 
   const attachmentManager = typeof window.createPromptAttachmentManager === "function"
     ? window.createPromptAttachmentManager({
@@ -124,6 +131,7 @@
   let selectedSkills = []; // 已选择的技能
   let currentRunningProcesses = null; // 当前正在运行的进程: Record<string, { startTime: string; command: string }> | null
   let loadingUpdateTimer = null; // 定时更新loading文本的计时器
+  let currentTokenTelemetry = null;
 
   function isBusyStatus(status) {
     return status === "processing" || status === "pending";
@@ -169,9 +177,143 @@
     promptInput.style.overflowY = promptInput.scrollHeight > maxHeight ? "auto" : "hidden";
   }
 
+  function getTokenUsagePercent(telemetry) {
+    const activeTokens = Number(telemetry?.activeTokens || 0);
+    const threshold = Number(telemetry?.compactPromptTokenThreshold || 0);
+    if (!Number.isFinite(activeTokens) || !Number.isFinite(threshold) || threshold <= 0) {
+      return 0;
+    }
+    return Math.trunc(2.0 * activeTokens / threshold * 100);
+  }
+
+  function formatTokenCount(value) {
+    const number = Number(value || 0);
+    if (!Number.isFinite(number)) {
+      return "0";
+    }
+    return number.toLocaleString();
+  }
+
+  function flattenUsageFields(value, prefix = "") {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      return [];
+    }
+
+    const rows = [];
+    Object.entries(value).forEach(([key, nestedValue]) => {
+      const fieldName = prefix ? `${prefix}.${key}` : key;
+      if (nestedValue && typeof nestedValue === "object" && !Array.isArray(nestedValue)) {
+        rows.push(...flattenUsageFields(nestedValue, fieldName));
+      } else {
+        rows.push([fieldName, nestedValue]);
+      }
+    });
+    return rows;
+  }
+
+  function formatUsageFieldLabel(label) {
+    if (label === "prompt_tokens_details.cached_tokens") {
+      return "prompt_cached_tokens";
+    }
+    if (label === "completion_tokens_details.reasoning_tokens") {
+      return "completion_reasoning_tokens";
+    }
+    return label;
+  }
+
+  function addTooltipRow(container, label, value) {
+    const row = document.createElement("div");
+    row.className = "context-tooltip-row";
+
+    const labelNode = document.createElement("span");
+    labelNode.className = "context-tooltip-label";
+    labelNode.textContent = label;
+
+    const valueNode = document.createElement("span");
+    valueNode.className = "context-tooltip-value";
+    valueNode.textContent = String(value);
+
+    row.appendChild(labelNode);
+    row.appendChild(valueNode);
+    container.appendChild(row);
+  }
+
+  function renderContextMeterTooltip(telemetry, percent) {
+    if (!contextMeterTooltip) {
+      return;
+    }
+
+    contextMeterTooltip.innerHTML = "";
+
+    const title = document.createElement("div");
+    title.className = "context-tooltip-title";
+    title.textContent = "Context Window";
+    contextMeterTooltip.appendChild(title);
+
+    const summary = document.createElement("div");
+    summary.className = "context-tooltip-summary";
+    summary.textContent = `${percent}% used`;
+    contextMeterTooltip.appendChild(summary);
+
+    addTooltipRow(contextMeterTooltip, "model", telemetry?.model || "unknown");
+    addTooltipRow(contextMeterTooltip, "thinking enabled", telemetry?.thinkingEnabled ? "true" : "false");
+    addTooltipRow(contextMeterTooltip, "reasoning effort", telemetry?.reasoningEffort || "max");
+    addTooltipRow(contextMeterTooltip, "activeTokens", formatTokenCount(telemetry?.activeTokens));
+
+    const usageRows = flattenUsageFields(telemetry?.usage);
+    if (usageRows.length > 0) {
+      const section = document.createElement("div");
+      section.className = "context-tooltip-section";
+      section.textContent = "session.usage";
+      contextMeterTooltip.appendChild(section);
+      usageRows.forEach(([key, value]) => {
+        addTooltipRow(
+          contextMeterTooltip,
+          formatUsageFieldLabel(key),
+          typeof value === "number" ? formatTokenCount(value) : value
+        );
+      });
+    }
+  }
+
+  function updateContextMeter(telemetry) {
+    currentTokenTelemetry = telemetry || null;
+    const percent = getTokenUsagePercent(currentTokenTelemetry);
+    const cappedPercent = Math.max(0, Math.min(percent, 100));
+
+    if (contextMeterRing) {
+      contextMeterRing.style.setProperty("--context-percent", `${cappedPercent}%`);
+    }
+    if (contextMeter) {
+      contextMeter.setAttribute("aria-label", `Context usage ${percent}%`);
+    }
+    renderContextMeterTooltip(currentTokenTelemetry, percent);
+  }
+
+  function updateContextMeterTooltipPosition() {
+    if (!contextMeter || !contextMeterTooltip) {
+      return;
+    }
+
+    const meterRect = contextMeter.getBoundingClientRect();
+    const tooltipRect = contextMeterTooltip.getBoundingClientRect();
+    const margin = 8;
+    const centeredLeft = meterRect.left + meterRect.width / 2 - tooltipRect.width / 2;
+    const left = Math.max(margin, Math.min(centeredLeft, window.innerWidth - tooltipRect.width - margin));
+    const top = Math.max(margin, meterRect.top - tooltipRect.height - 10);
+
+    contextMeterTooltip.style.left = `${left}px`;
+    contextMeterTooltip.style.top = `${top}px`;
+    contextMeterTooltip.style.bottom = "auto";
+  }
+
   function getAttachedImageUrls() {
     return attachmentManager ? attachmentManager.getImageUrls() : [];
   }
+
+  contextMeter?.addEventListener("mouseenter", () => {
+    requestAnimationFrame(updateContextMeterTooltipPosition);
+  });
 
   // Skills functions
   function showSkillsPopup() {
@@ -1440,6 +1582,7 @@
       }
       currentSessionId = null;
       currentSessionStatus = message.status || null;
+      updateContextMeter(message.tokenTelemetry);
       attachmentManager?.clear();
       setLoading(false, currentSessionStatus);
 
@@ -1458,6 +1601,7 @@
       // 加载已有对话
       currentSessionId = message.sessionId;
       currentSessionStatus = message.status || null;
+      updateContextMeter(message.tokenTelemetry);
       if ('processes' in message) {
         currentRunningProcesses = message.processes;
       } else {
@@ -1532,6 +1676,9 @@
       const nextStatus = message.status || null;
       if ('processes' in message) {
         currentRunningProcesses = message.processes;
+      }
+      if ('tokenTelemetry' in message) {
+        updateContextMeter(message.tokenTelemetry);
       }
       setLoading(isBusyStatus(nextStatus), nextStatus);
     } else if (message.type === "userMessage") {

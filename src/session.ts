@@ -15,7 +15,7 @@ const DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD = 128 * 1024;
 const DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD = 512 * 1024;
 const DEEPSEEK_V4_MODELS = new Set(["deepseek-v4-flash", "deepseek-v4-pro"]);
 
-function getCompactPromptTokenThreshold(model: string): number {
+export function getCompactPromptTokenThreshold(model: string): number {
   return DEEPSEEK_V4_MODELS.has(model)
     ? DEEPSEEK_V4_COMPACT_PROMPT_TOKEN_THRESHOLD
     : DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD;
