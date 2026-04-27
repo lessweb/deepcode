@@ -21,6 +21,42 @@ function getCompactPromptTokenThreshold(model: string): number {
     : DEFAULT_COMPACT_PROMPT_TOKEN_THRESHOLD;
 }
 
+function isUsageRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function addUsageValue(current: unknown, next: unknown): unknown {
+  if (typeof next === "number") {
+    return (typeof current === "number" ? current : 0) + next;
+  }
+
+  if (isUsageRecord(next)) {
+    const currentRecord = isUsageRecord(current) ? current : {};
+    const result: Record<string, unknown> = { ...currentRecord };
+    for (const [key, value] of Object.entries(next)) {
+      result[key] = addUsageValue(currentRecord[key], value);
+    }
+    return result;
+  }
+
+  return next;
+}
+
+function accumulateUsage(current: unknown | null, next: unknown | null | undefined): unknown | null {
+  if (next == null) {
+    return current ?? null;
+  }
+  return addUsageValue(current, next);
+}
+
+function getTotalTokens(usage: unknown | null | undefined): number {
+  if (!isUsageRecord(usage)) {
+    return 0;
+  }
+  const totalTokens = usage.total_tokens;
+  return typeof totalTokens === "number" ? totalTokens : 0;
+}
+
 export type SessionStatus =
   | "failed"
   | "pending"
@@ -39,6 +75,7 @@ export type SessionEntry = {
   status: SessionStatus;
   failReason: string | null;
   usage: unknown | null;
+  activeTokens: number;
   createTime: string;
   updateTime: string;
   processes: Map<string, { startTime: string; command: string }> | null;  // {pid: {startTime, command}}
@@ -389,6 +426,7 @@ The candidate skills are as follows:\n\n`;
       status: "pending",
       failReason: null,
       usage: null,
+      activeTokens: 0,
       createTime: now,
       updateTime: now,
       processes: null
@@ -544,7 +582,7 @@ ${skillMd}
         }
 
         const compactPromptTokenThreshold = getCompactPromptTokenThreshold(model);
-        if (((session.usage as { prompt_tokens: number })?.prompt_tokens || 0) > compactPromptTokenThreshold) {
+        if (session.activeTokens > compactPromptTokenThreshold) {
           const message = this.buildAssistantMessage(sessionId, "The conversation is getting long, compacting...", null);
           message.meta = { asThinking: true };
           this.onAssistantMessage(message, false);
@@ -589,13 +627,15 @@ ${skillMd}
           return;
         }
 
+        const responseUsage = response.usage ?? null;
         this.updateSessionEntry(sessionId, (entry) => ({
           ...entry,
           assistantReply: content,
           assistantThinking: thinking,
           assistantRefusal: refusal,
           toolCalls,
-          usage: response.usage ?? null,
+          usage: accumulateUsage(entry.usage, responseUsage),
+          activeTokens: entry.activeTokens + getTotalTokens(responseUsage),
           status: refusal
             ? "failed"
             : waitingForUser
@@ -691,6 +731,14 @@ ${skillMd}
     const compactedSummary = llmResponse.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "").trim();
 
     const now = new Date().toISOString();
+    const responseUsage = response.usage ?? null;
+    this.updateSessionEntry(sessionId, (entry) => ({
+      ...entry,
+      usage: accumulateUsage(entry.usage, responseUsage),
+      activeTokens: getTotalTokens(responseUsage),
+      updateTime: now
+    }));
+
     for (let i = startIndex; i < endIndex; i += 1) {
       sessionMessages[i] = { ...sessionMessages[i], compacted: true, updateTime: now };
     }
@@ -1488,6 +1536,7 @@ ${skillMd}
       status: this.normalizeSessionStatus(value.status),
       failReason: typeof value.failReason === "string" ? value.failReason : null,
       usage: value.usage ?? null,
+      activeTokens: typeof value.activeTokens === "number" ? value.activeTokens : getTotalTokens(value.usage),
       createTime: typeof value.createTime === "string" ? value.createTime : new Date().toISOString(),
       updateTime: typeof value.updateTime === "string" ? value.updateTime : new Date().toISOString(),
       processes: this.deserializeProcesses(value.processes)

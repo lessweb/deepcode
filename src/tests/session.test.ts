@@ -231,6 +231,85 @@ test("replySession reports a new prompt with the machineId token", async () => {
   assert.equal((fetchCalls[0].init?.headers as Record<string, string>).Token, "machine-id-456");
 });
 
+test("SessionManager accumulates response usage and active tokens", async () => {
+  const workspace = createTempDir("deepcode-usage-workspace-");
+  const home = createTempDir("deepcode-usage-home-");
+  process.env.HOME = home;
+
+  const responses = [
+    createChatResponse("first", {
+      prompt_tokens: 10,
+      completion_tokens: 5,
+      total_tokens: 15,
+      prompt_tokens_details: { cached_tokens: 7 },
+      completion_tokens_details: { reasoning_tokens: 3 },
+      prompt_cache_hit_tokens: 7,
+      prompt_cache_miss_tokens: 3
+    }),
+    createChatResponse("second", {
+      prompt_tokens: 20,
+      completion_tokens: 7,
+      total_tokens: 27,
+      prompt_tokens_details: { cached_tokens: 11 },
+      completion_tokens_details: { reasoning_tokens: 4 },
+      prompt_cache_hit_tokens: 11,
+      prompt_cache_miss_tokens: 9
+    })
+  ];
+  const manager = createMockedClientSessionManager(workspace, responses);
+
+  const sessionId = await manager.createSession({ text: "" });
+  await manager.replySession(sessionId, { text: "" });
+
+  const session = manager.getSession(sessionId);
+  const usage = session?.usage as Record<string, any>;
+  assert.equal(session?.activeTokens, 42);
+  assert.equal(usage.prompt_tokens, 30);
+  assert.equal(usage.completion_tokens, 12);
+  assert.equal(usage.total_tokens, 42);
+  assert.equal(usage.prompt_tokens_details.cached_tokens, 18);
+  assert.equal(usage.completion_tokens_details.reasoning_tokens, 7);
+  assert.equal(usage.prompt_cache_hit_tokens, 18);
+  assert.equal(usage.prompt_cache_miss_tokens, 12);
+});
+
+test("SessionManager resets active tokens to compaction usage", async () => {
+  const workspace = createTempDir("deepcode-compact-usage-workspace-");
+  const home = createTempDir("deepcode-compact-usage-home-");
+  process.env.HOME = home;
+
+  const responses = [
+    createChatResponse("large", {
+      prompt_tokens: 139_990,
+      completion_tokens: 10,
+      total_tokens: 140_000
+    }),
+    createChatResponse("summary", {
+      prompt_tokens: 100,
+      completion_tokens: 23,
+      total_tokens: 123
+    }),
+    createChatResponse("after compact", {
+      prompt_tokens: 5,
+      completion_tokens: 2,
+      total_tokens: 7
+    })
+  ];
+  const manager = createMockedClientSessionManager(workspace, responses);
+
+  const sessionId = await manager.createSession({ text: "" });
+  assert.equal(manager.getSession(sessionId)?.activeTokens, 140_000);
+
+  await manager.replySession(sessionId, { text: "" });
+
+  const session = manager.getSession(sessionId);
+  const usage = session?.usage as Record<string, any>;
+  assert.equal(session?.activeTokens, 130);
+  assert.equal(usage.prompt_tokens, 140_095);
+  assert.equal(usage.completion_tokens, 35);
+  assert.equal(usage.total_tokens, 140_130);
+});
+
 function createSessionManager(projectRoot: string, machineId: string): SessionManager {
   return new SessionManager({
     projectRoot,
@@ -245,6 +324,40 @@ function createSessionManager(projectRoot: string, machineId: string): SessionMa
     renderMarkdown: (text) => text,
     onAssistantMessage: () => {}
   });
+}
+
+function createMockedClientSessionManager(projectRoot: string, responses: unknown[]): SessionManager {
+  const client = {
+    chat: {
+      completions: {
+        create: async () => {
+          const response = responses.shift();
+          assert.ok(response, "expected a queued chat response");
+          return response;
+        }
+      }
+    }
+  };
+
+  return new SessionManager({
+    projectRoot,
+    createOpenAIClient: () => ({
+      client: client as any,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false
+    }),
+    getResolvedSettings: () => ({}),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {}
+  });
+}
+
+function createChatResponse(content: string, usage: Record<string, unknown>): unknown {
+  return {
+    choices: [{ message: { content } }],
+    usage
+  };
 }
 
 function createTempDir(prefix: string): string {
