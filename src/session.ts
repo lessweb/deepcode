@@ -133,6 +133,16 @@ type SessionManagerOptions = {
   renderMarkdown: (text: string) => string;
   onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   onSessionEntryUpdated?: (entry: SessionEntry) => void;
+  onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
+};
+
+export type LlmStreamProgress = {
+  requestId: string;
+  sessionId?: string;
+  startedAt: string;
+  estimatedTokens: number;
+  formattedTokens: string;
+  phase: "start" | "update" | "end";
 };
 
 export class SessionManager {
@@ -141,7 +151,9 @@ export class SessionManager {
   private readonly getResolvedSettings: () => { webSearchTool?: string };
   private readonly onAssistantMessage: (message: SessionMessage, shouldConnect: boolean) => void;
   private readonly onSessionEntryUpdated?: (entry: SessionEntry) => void;
+  private readonly onLlmStreamProgress?: (progress: LlmStreamProgress) => void;
   private activeSessionId: string | null = null;
+  private activePromptController: AbortController | null = null;
   private readonly sessionControllers = new Map<string, AbortController>();
   private readonly toolExecutor: ToolExecutor;
 
@@ -151,10 +163,222 @@ export class SessionManager {
     this.getResolvedSettings = options.getResolvedSettings;
     this.onAssistantMessage = options.onAssistantMessage;
     this.onSessionEntryUpdated = options.onSessionEntryUpdated;
+    this.onLlmStreamProgress = options.onLlmStreamProgress;
     this.toolExecutor = new ToolExecutor(this.projectRoot, this.createOpenAIClient);
   }
 
-  async identifyMatchingSkillNames(skills: SkillInfo[], userPrompt: string): Promise<string[]> {
+  private estimateStreamTokens(text: string): number {
+    let tokens = 0;
+    for (const char of text) {
+      tokens += /[\u3400-\u9fff\uf900-\ufaff]/u.test(char) ? 0.6 : 0.3;
+    }
+    return tokens;
+  }
+
+  private formatEstimatedTokens(tokens: number): string {
+    if (tokens <= 0) {
+      return "0";
+    }
+
+    const roundedTokens = Math.round(tokens);
+    if (roundedTokens <= 0) {
+      return "0";
+    }
+
+    if (roundedTokens < 100) {
+      return String(roundedTokens);
+    }
+
+    if (roundedTokens < 10000) {
+      return `${Number((roundedTokens / 1000).toFixed(1))}k`;
+    }
+
+    return `${Math.round(roundedTokens / 1000)}k`;
+  }
+
+  private emitLlmStreamProgress(
+    requestId: string,
+    startedAt: string,
+    estimatedTokens: number,
+    phase: LlmStreamProgress["phase"],
+    sessionId?: string
+  ): void {
+    this.onLlmStreamProgress?.({
+      requestId,
+      sessionId,
+      startedAt,
+      estimatedTokens: Math.round(estimatedTokens),
+      formattedTokens: this.formatEstimatedTokens(estimatedTokens),
+      phase
+    });
+  }
+
+  private isAbortLikeError(error: unknown): boolean {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+
+    return error.name === "AbortError" || error.constructor.name === "APIUserAbortError";
+  }
+
+  private throwIfAborted(signal?: AbortSignal | null): void {
+    if (!signal?.aborted) {
+      return;
+    }
+
+    const error = new Error("Request was aborted.");
+    error.name = "AbortError";
+    throw error;
+  }
+
+  private async createChatCompletionStream(
+    client: NonNullable<ReturnType<CreateOpenAIClient>["client"]>,
+    request: Record<string, unknown>,
+    options?: Record<string, unknown>,
+    sessionId?: string
+  ): Promise<{
+    choices?: Array<{ message?: Record<string, unknown> }>;
+    usage?: unknown;
+  }> {
+    const requestId = crypto.randomUUID();
+    const startedAt = new Date().toISOString();
+    let estimatedTokens = 0;
+    this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "start", sessionId);
+
+    const streamRequest = {
+      ...request,
+      stream: true,
+      stream_options: {
+        ...(isUsageRecord(request.stream_options) ? request.stream_options : {}),
+        include_usage: true
+      }
+    };
+
+    let response: unknown;
+    try {
+      response = await (client.chat.completions.create as unknown as (
+        body: Record<string, unknown>,
+        options?: Record<string, unknown>
+      ) => Promise<unknown>)(streamRequest, options);
+    } catch (error) {
+      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+      throw error;
+    }
+
+    if (!response || typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !== "function") {
+      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+      return response as { choices?: Array<{ message?: Record<string, unknown> }>; usage?: unknown };
+    }
+
+    let content = "";
+    let reasoningContent = "";
+    let refusal: string | null = null;
+    let usage: unknown = null;
+    const toolCallsByIndex = new Map<number, {
+      id?: string;
+      type?: string;
+      function?: { name?: string; arguments?: string };
+    }>();
+
+    const trackText = (value: unknown) => {
+      if (typeof value !== "string" || value.length === 0) {
+        return;
+      }
+      estimatedTokens += this.estimateStreamTokens(value);
+      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "update", sessionId);
+    };
+
+    try {
+      for await (const chunk of response as AsyncIterable<Record<string, unknown>>) {
+        if ("usage" in chunk && chunk.usage != null) {
+          usage = chunk.usage;
+        }
+
+        const choices = Array.isArray(chunk.choices) ? chunk.choices : [];
+        for (const choice of choices) {
+          const delta = isUsageRecord(choice) && isUsageRecord(choice.delta) ? choice.delta : null;
+          if (!delta) {
+            continue;
+          }
+
+          const contentDelta = delta.content;
+          if (typeof contentDelta === "string") {
+            content += contentDelta;
+            trackText(contentDelta);
+          }
+
+          const reasoningDelta = delta.reasoning_content ?? delta.reasoning;
+          if (typeof reasoningDelta === "string") {
+            reasoningContent += reasoningDelta;
+            trackText(reasoningDelta);
+          }
+
+          if (typeof delta.refusal === "string") {
+            refusal = `${refusal ?? ""}${delta.refusal}`;
+            trackText(delta.refusal);
+          }
+
+          const rawToolCalls = delta.tool_calls;
+          if (Array.isArray(rawToolCalls)) {
+            for (const rawToolCall of rawToolCalls) {
+              if (!isUsageRecord(rawToolCall)) {
+                continue;
+              }
+              const index = typeof rawToolCall.index === "number" ? rawToolCall.index : toolCallsByIndex.size;
+              const current = toolCallsByIndex.get(index) ?? {};
+              if (typeof rawToolCall.id === "string") {
+                current.id = rawToolCall.id;
+              }
+              if (typeof rawToolCall.type === "string") {
+                current.type = rawToolCall.type;
+              }
+              const rawFunction = isUsageRecord(rawToolCall.function) ? rawToolCall.function : null;
+              if (rawFunction) {
+                current.function = current.function ?? {};
+                if (typeof rawFunction.name === "string") {
+                  current.function.name = `${current.function.name ?? ""}${rawFunction.name}`;
+                  trackText(rawFunction.name);
+                }
+                if (typeof rawFunction.arguments === "string") {
+                  current.function.arguments = `${current.function.arguments ?? ""}${rawFunction.arguments}`;
+                  trackText(rawFunction.arguments);
+                }
+              }
+              toolCallsByIndex.set(index, current);
+            }
+          }
+        }
+      }
+    } finally {
+      this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
+    }
+
+    const toolCalls = Array.from(toolCallsByIndex.entries())
+      .sort(([left], [right]) => left - right)
+      .map(([, toolCall]) => toolCall);
+    const message: Record<string, unknown> = { content };
+    if (toolCalls.length > 0) {
+      message.tool_calls = toolCalls;
+    }
+    if (reasoningContent.length > 0) {
+      message.reasoning_content = reasoningContent;
+    }
+    if (refusal != null) {
+      message.refusal = refusal;
+    }
+
+    return {
+      choices: [{ message }],
+      usage
+    };
+  }
+
+  async identifyMatchingSkillNames(
+    skills: SkillInfo[],
+    userPrompt: string,
+    options?: { signal?: AbortSignal; sessionId?: string }
+  ): Promise<string[]> {
+    this.throwIfAborted(options?.signal);
     let systemPrompt = `When users ask you to perform tasks, check if any of the available skills match. Skills provide specialized capabilities and domain knowledge.\n
 Response in JSON format:
 \`\`\`
@@ -178,16 +402,18 @@ The candidate skills are as follows:\n\n`;
     }
 
     try {
-      const response = await client.chat.completions.create({
+      const response = await this.createChatCompletionStream(client, {
         model,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
         response_format: { type: "json_object" }
-      });
+      }, options?.signal ? { signal: options.signal } : undefined, options?.sessionId);
+      this.throwIfAborted(options?.signal);
       
-      const content = response.choices?.[0]?.message?.content;
+      const rawContent = response.choices?.[0]?.message?.content;
+      const content = typeof rawContent === "string" ? rawContent : "";
       if (!content) {
         return [];
       }
@@ -199,6 +425,9 @@ The candidate skills are as follows:\n\n`;
       
       return [];
     } catch (error) {
+      if (this.isAbortLikeError(error) || options?.signal?.aborted) {
+        throw error;
+      }
       return [];
     }
   }
@@ -391,19 +620,35 @@ The candidate skills are as follows:\n\n`;
   }
 
   async handleUserPrompt(userPrompt: UserPromptContent): Promise<void> {
-    if (!this.activeSessionId || !this.getSession(this.activeSessionId)) {
-      await this.createSession(userPrompt);
-    } else {
-      await this.replySession(this.activeSessionId, userPrompt);
+    const controller = new AbortController();
+    this.activePromptController = controller;
+
+    try {
+      if (!this.activeSessionId || !this.getSession(this.activeSessionId)) {
+        await this.createSession(userPrompt, controller);
+      } else {
+        await this.replySession(this.activeSessionId, userPrompt, controller);
+      }
+    } catch (error) {
+      if (!this.isAbortLikeError(error) && !controller.signal.aborted) {
+        throw error;
+      }
+    } finally {
+      if (this.activePromptController === controller) {
+        this.activePromptController = null;
+      }
     }
   }
 
-  async createSession(userPrompt: UserPromptContent): Promise<string> {
+  async createSession(userPrompt: UserPromptContent, controller?: AbortController): Promise<string> {
     this.reportNewPrompt();
+    const signal = controller?.signal;
+    this.throwIfAborted(signal);
 
     if (userPrompt.text) {
       const skills = await this.listSkills();
-      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text)
+      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal });
+      this.throwIfAborted(signal);
       const skillSet = new Set(skillNames);
       const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
       if (Array.isArray(userPrompt.skills)) {
@@ -413,6 +658,7 @@ The candidate skills are as follows:\n\n`;
       }
     }
     userPrompt.skills = await this.normalizeSkills(userPrompt.skills);
+    this.throwIfAborted(signal);
     const sessionId = crypto.randomUUID();
     const now = new Date().toISOString();
     const index = this.loadSessionsIndex();
@@ -483,11 +729,13 @@ ${skillMd}
     }
 
     this.activeSessionId = sessionId;
-    await this.activateSession(sessionId);
+    await this.activateSession(sessionId, controller);
     return sessionId;
   }
 
-  async replySession(sessionId: string, userPrompt: UserPromptContent): Promise<void> {
+  async replySession(sessionId: string, userPrompt: UserPromptContent, controller?: AbortController): Promise<void> {
+    const signal = controller?.signal;
+    this.throwIfAborted(signal);
     const now = new Date().toISOString();
     const updated = this.updateSessionEntry(sessionId, (entry) => ({
       ...entry,
@@ -497,7 +745,7 @@ ${skillMd}
     }));
 
     if (!updated) {
-      await this.createSession(userPrompt);
+      await this.createSession(userPrompt, controller);
       return;
     }
 
@@ -505,7 +753,8 @@ ${skillMd}
 
     if (userPrompt.text) {
       const skills = await this.listSkills(sessionId);
-      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text)
+      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal, sessionId });
+      this.throwIfAborted(signal);
       const skillSet = new Set(skillNames);
       const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
       if (Array.isArray(userPrompt.skills)) {
@@ -515,6 +764,7 @@ ${skillMd}
       }
     }
     userPrompt.skills = await this.normalizeSkills(userPrompt.skills, sessionId);
+    this.throwIfAborted(signal);
 
     const userMessage = this.buildUserMessage(sessionId, userPrompt);
     this.appendSessionMessage(sessionId, userMessage);
@@ -535,10 +785,10 @@ ${skillMd}
       }
     }
     this.activeSessionId = sessionId;
-    await this.activateSession(sessionId);
+    await this.activateSession(sessionId, controller);
   }
 
-  async activateSession(sessionId: string): Promise<void> {
+  async activateSession(sessionId: string, controller?: AbortController): Promise<void> {
     const startedAt = Date.now();
     const { client, model, baseURL, thinkingEnabled, reasoningEffort, notify } = this.createOpenAIClient();
     const now = new Date().toISOString();
@@ -558,14 +808,25 @@ ${skillMd}
       return;
     }
 
+    const sessionController = controller ?? new AbortController();
+    if (sessionController.signal.aborted) {
+      this.updateSessionEntry(sessionId, (entry) => ({
+        ...entry,
+        status: "interrupted",
+        failReason: "interrupted",
+        updateTime: now
+      }));
+      this.maybeNotifyTaskCompletion(sessionId, notify, startedAt);
+      return;
+    }
+
     this.updateSessionEntry(sessionId, (entry) => ({
       ...entry,
       status: "processing",
       updateTime: now
     }));
 
-    const controller = new AbortController();
-    this.sessionControllers.set(sessionId, controller);
+    this.sessionControllers.set(sessionId, sessionController);
 
     try {
       const maxIterations = 80000;  // about 1K RMB cost
@@ -586,23 +847,26 @@ ${skillMd}
           const message = this.buildAssistantMessage(sessionId, "The conversation is getting long, compacting...", null);
           message.meta = { asThinking: true };
           this.onAssistantMessage(message, false);
-          await this.compactSession(sessionId);
+          await this.compactSession(sessionId, sessionController.signal);
         }
 
         const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId), thinkingEnabled);
         const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
-        const response = await client.chat.completions.create(
-            {
-              model,
-              messages,
-              tools: getTools(this.getPromptToolOptions()),
-              ...thinkingOptions
-            },
-            { signal: controller.signal }
+        const response = await this.createChatCompletionStream(
+          client,
+          {
+            model,
+            messages,
+            tools: getTools(this.getPromptToolOptions()),
+            ...thinkingOptions
+          },
+          { signal: sessionController.signal },
+          sessionId
         );
 
         const message = response.choices?.[0]?.message;
-        const content = message?.content ?? "";
+        const rawContent = message?.content;
+        const content = typeof rawContent === "string" ? rawContent : "";
         const rawToolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
         toolCalls = Array.isArray(rawToolCalls) && rawToolCalls.length > 0 ? rawToolCalls : null;
         const rawThinking = (message as { reasoning_content?: unknown } | undefined)?.reasoning_content;
@@ -671,11 +935,11 @@ ${skillMd}
       )
     } catch (error) {
       const errMessage = error instanceof Error ? error.message : String(error);
-      const aborted = error instanceof Error && error.name === "AbortError";
+      const aborted = this.isAbortLikeError(error) || sessionController.signal.aborted;
       this.updateSessionEntry(sessionId, (entry) => ({
         ...entry,
         status: aborted ? "interrupted" : "failed",
-        failReason: errMessage,
+        failReason: aborted ? "interrupted" : errMessage,
         updateTime: new Date().toISOString()
       }));
 
@@ -686,12 +950,15 @@ ${skillMd}
         );
       }
     } finally {
-      this.sessionControllers.delete(sessionId);
+      if (this.sessionControllers.get(sessionId) === sessionController) {
+        this.sessionControllers.delete(sessionId);
+      }
       this.maybeNotifyTaskCompletion(sessionId, notify, startedAt);
     }
   }
 
-  async compactSession(sessionId: string): Promise<void> {
+  async compactSession(sessionId: string, signal?: AbortSignal): Promise<void> {
+    this.throwIfAborted(signal);
     const { client, model, baseURL, thinkingEnabled, reasoningEffort } = this.createOpenAIClient();
     if (!client) {
       return;
@@ -722,12 +989,14 @@ ${skillMd}
 
     const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
     const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
-    const response = await client.chat.completions.create({
+    const response = await this.createChatCompletionStream(client, {
       model,
       messages: [{ role: "user", content: compactPrompt }],
       ...thinkingOptions
-    });
-    const llmResponse = response.choices?.[0]?.message?.content ?? "";
+    }, signal ? { signal } : undefined, sessionId);
+    this.throwIfAborted(signal);
+    const rawLlmResponse = response.choices?.[0]?.message?.content;
+    const llmResponse = typeof rawLlmResponse === "string" ? rawLlmResponse : "";
     const compactedSummary = llmResponse.replace(/<analysis>[\s\S]*?<\/analysis>/gi, "").trim();
 
     const now = new Date().toISOString();
@@ -796,6 +1065,18 @@ ${skillMd}
         const message = error instanceof Error ? error.message : String(error);
         console.warn(`Failed to report new prompt: ${message}`);
       });
+  }
+
+  interruptActiveSession(): void {
+    const controller = this.activePromptController;
+    if (controller && !controller.signal.aborted) {
+      controller.abort();
+    }
+
+    const sessionId = this.activeSessionId;
+    if (sessionId) {
+      this.interruptSession(sessionId);
+    }
   }
 
   interruptSession(sessionId: string): void {
@@ -1163,7 +1444,8 @@ ${skillMd}
   ): Promise<{ waitingForUser: boolean }> {
     const toolExecutions = await this.toolExecutor.executeToolCalls(sessionId, toolCalls, {
       onProcessStart: (pid, command) => this.addSessionProcess(sessionId, pid, command),
-      onProcessExit: (pid) => this.removeSessionProcess(sessionId, pid)
+      onProcessExit: (pid) => this.removeSessionProcess(sessionId, pid),
+      shouldStop: () => this.isInterrupted(sessionId)
     });
     if (this.isInterrupted(sessionId)) {
       return { waitingForUser: false };

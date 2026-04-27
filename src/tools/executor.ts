@@ -39,6 +39,7 @@ export type ToolExecutionContext = {
 export type ToolExecutionHooks = {
   onProcessStart?: (processId: string | number, command: string) => void;
   onProcessExit?: (processId: string | number) => void;
+  shouldStop?: () => boolean;
 };
 
 export type ToolExecutionResult = {
@@ -90,12 +91,18 @@ export class ToolExecutor {
 
     const executions: ToolCallExecution[] = [];
     for (const toolCall of parsedCalls) {
+      if (hooks?.shouldStop?.()) {
+        break;
+      }
       const result = await this.executeToolCall(sessionId, toolCall, hooks);
       executions.push({
         toolCallId: toolCall.id,
         content: this.formatToolResult(result),
         result
       });
+      if (hooks?.shouldStop?.()) {
+        break;
+      }
     }
     return executions;
   }

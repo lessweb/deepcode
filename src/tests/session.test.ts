@@ -310,6 +310,156 @@ test("SessionManager resets active tokens to compaction usage", async () => {
   assert.equal(usage.total_tokens, 140_130);
 });
 
+test("SessionManager streams chat completions and counts reasoning progress", async () => {
+  const workspace = createTempDir("deepcode-stream-workspace-");
+  const home = createTempDir("deepcode-stream-home-");
+  process.env.HOME = home;
+
+  const progressEvents: Array<{
+    phase: string;
+    estimatedTokens: number;
+    formattedTokens: string;
+  }> = [];
+  const client = {
+    chat: {
+      completions: {
+        create: async (request: Record<string, unknown>) => {
+          assert.equal(request.stream, true);
+          assert.deepEqual(request.stream_options, { include_usage: true });
+          return createChatStreamResponse([
+            { choices: [{ delta: { reasoning_content: "思考" } }] },
+            { choices: [{ delta: { content: "hello" } }] },
+            {
+              choices: [],
+              usage: {
+                prompt_tokens: 2,
+                completion_tokens: 3,
+                total_tokens: 5
+              }
+            }
+          ]);
+        }
+      }
+    }
+  };
+
+  const manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: client as any,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false
+    }),
+    getResolvedSettings: () => ({}),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+    onLlmStreamProgress: (progress) => {
+      progressEvents.push({
+        phase: progress.phase,
+        estimatedTokens: progress.estimatedTokens,
+        formattedTokens: progress.formattedTokens
+      });
+    }
+  });
+
+  const sessionId = await manager.createSession({ text: "" });
+  const assistantMessage = manager
+    .listSessionMessages(sessionId)
+    .find((message) => message.role === "assistant");
+
+  assert.equal(assistantMessage?.content, "hello");
+  assert.equal((assistantMessage?.messageParams as any)?.reasoning_content, "思考");
+  assert.equal(manager.getSession(sessionId)?.activeTokens, 5);
+  assert.deepEqual(
+    progressEvents.map((event) => event.phase),
+    ["start", "update", "update", "end"]
+  );
+  assert.equal(progressEvents[1]?.estimatedTokens, 1);
+  assert.equal(progressEvents[2]?.formattedTokens, "3");
+});
+
+test("SessionManager cancels skill matching before a session is created", async () => {
+  const workspace = createTempDir("deepcode-skill-abort-workspace-");
+  const home = createTempDir("deepcode-skill-abort-home-");
+  process.env.HOME = home;
+
+  const skillDir = path.join(home, ".agents", "skills", "demo");
+  fs.mkdirSync(skillDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(skillDir, "SKILL.md"),
+    "---\nname: demo\ndescription: Demo skill\n---\n# Demo\n",
+    "utf8"
+  );
+
+  let manager: SessionManager;
+  const client = {
+    chat: {
+      completions: {
+        create: async (_request: Record<string, unknown>, options?: { signal?: AbortSignal }) => {
+          return new Promise((_resolve, reject) => {
+            const signal = options?.signal;
+            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
+            queueMicrotask(() => manager.interruptActiveSession());
+          });
+        }
+      }
+    }
+  };
+
+  manager = createMockedClientSessionManagerWithClient(workspace, client);
+
+  await manager.handleUserPrompt({ text: "please use demo" });
+
+  assert.equal(manager.listSessions().length, 0);
+});
+
+test("SessionManager treats OpenAI APIUserAbortError as interrupted", async () => {
+  const workspace = createTempDir("deepcode-api-abort-workspace-");
+  const home = createTempDir("deepcode-api-abort-home-");
+  process.env.HOME = home;
+
+  let manager: SessionManager;
+  const client = {
+    chat: {
+      completions: {
+        create: async (_request: Record<string, unknown>, options?: { signal?: AbortSignal }) => {
+          return new Promise((_resolve, reject) => {
+            const signal = options?.signal;
+            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
+          });
+        }
+      }
+    }
+  };
+
+  manager = new SessionManager({
+    projectRoot: workspace,
+    createOpenAIClient: () => ({
+      client: client as any,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false
+    }),
+    getResolvedSettings: () => ({}),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {},
+    onSessionEntryUpdated: (entry) => {
+      if (entry.status === "processing") {
+        queueMicrotask(() => manager.interruptActiveSession());
+      }
+    }
+  });
+
+  await manager.handleUserPrompt({ text: "" });
+
+  const activeSessionId = manager.getActiveSessionId();
+  assert.ok(activeSessionId);
+  const session = manager.getSession(activeSessionId);
+  assert.equal(session?.status, "interrupted");
+  assert.equal(session?.failReason, "interrupted");
+});
+
 function createSessionManager(projectRoot: string, machineId: string): SessionManager {
   return new SessionManager({
     projectRoot,
@@ -353,11 +503,34 @@ function createMockedClientSessionManager(projectRoot: string, responses: unknow
   });
 }
 
+function createMockedClientSessionManagerWithClient(projectRoot: string, client: unknown): SessionManager {
+  return new SessionManager({
+    projectRoot,
+    createOpenAIClient: () => ({
+      client: client as any,
+      model: "test-model",
+      baseURL: "https://api.deepseek.com",
+      thinkingEnabled: false
+    }),
+    getResolvedSettings: () => ({}),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {}
+  });
+}
+
+class APIUserAbortError extends Error {}
+
 function createChatResponse(content: string, usage: Record<string, unknown>): unknown {
   return {
     choices: [{ message: { content } }],
     usage
   };
+}
+
+async function* createChatStreamResponse(chunks: Record<string, unknown>[]): AsyncGenerator<Record<string, unknown>> {
+  for (const chunk of chunks) {
+    yield chunk;
+  }
 }
 
 function createTempDir(prefix: string): string {

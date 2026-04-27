@@ -8,6 +8,7 @@ import {
   SessionManager,
   SessionMessage,
   getCompactPromptTokenThreshold,
+  type LlmStreamProgress,
   type SessionEntry,
   type SkillInfo,
   type UserPromptContent
@@ -61,6 +62,15 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
           processes: this.serializeProcesses(entry.processes),
           tokenTelemetry: this.buildTokenTelemetry(entry)
         });
+      },
+      onLlmStreamProgress: (progress: LlmStreamProgress) => {
+        if (!this.webviewView) {
+          return;
+        }
+        this.webviewView.webview.postMessage({
+          type: "llmStreamProgress",
+          progress
+        });
       }
     });
   }
@@ -97,10 +107,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         await this.handlePrompt(prompt, skills, images);
       } else if (message?.type === "interrupt") {
         // 中断当前会话
-        const activeSessionId = this.sessionManager.getActiveSessionId();
-        if (activeSessionId) {
-          this.sessionManager.interruptSession(activeSessionId);
-        }
+        this.sessionManager.interruptActiveSession();
       } else if (message?.type === "createNewSession") {
         await this.createNewSession();
       } else if (message?.type === "selectSession") {

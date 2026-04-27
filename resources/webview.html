@@ -131,6 +131,7 @@
   let selectedSkills = []; // 已选择的技能
   let currentRunningProcesses = null; // 当前正在运行的进程: Record<string, { startTime: string; command: string }> | null
   let loadingUpdateTimer = null; // 定时更新loading文本的计时器
+  let currentLlmStreamProgress = null;
   let currentTokenTelemetry = null;
 
   function isBusyStatus(status) {
@@ -1102,21 +1103,35 @@
     if (!loadingSpan) {
       return;
     }
-    if (!currentRunningProcesses || Object.keys(currentRunningProcesses).length === 0) {
-      loadingSpan.textContent = 'Thinking...';
+    if (currentRunningProcesses && Object.keys(currentRunningProcesses).length > 0) {
+      // 显示第一个运行中的进程（通常只有一个进程在运行）
+      const firstPid = Object.keys(currentRunningProcesses)[0];
+      const process = currentRunningProcesses[firstPid];
+      const elapsed = formatElapsedTime(process.startTime);
+      loadingSpan.textContent = `(${elapsed}) ${process.command}`;
       return;
     }
-    // 显示第一个运行中的进程（通常只有一个进程在运行）
-    const firstPid = Object.keys(currentRunningProcesses)[0];
-    const process = currentRunningProcesses[firstPid];
-    const elapsed = formatElapsedTime(process.startTime);
-    loadingSpan.textContent = `(${elapsed}) ${process.command}`;
+
+    if (currentLlmStreamProgress && currentLlmStreamProgress.startedAt) {
+      const startedAt = new Date(currentLlmStreamProgress.startedAt).getTime();
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      if (elapsedSeconds >= 3) {
+        const formattedTokens = currentLlmStreamProgress.formattedTokens || "0";
+        loadingSpan.textContent = `Thinking... (${elapsedSeconds}s) · ↓ ${formattedTokens} tokens`;
+        return;
+      }
+    }
+
+    loadingSpan.textContent = 'Thinking...';
   }
 
   function setLoading(isLoading, status) {
     loading.classList.toggle("active", isLoading);
     if (status !== undefined) {
       currentSessionStatus = status;
+    }
+    if (!isLoading) {
+      currentLlmStreamProgress = null;
     }
 
     // 清除旧的计时器
@@ -1125,8 +1140,7 @@
       loadingUpdateTimer = null;
     }
 
-    // 如果正在加载且有运行中的进程，每秒更新一次文本
-    if (isLoading && currentRunningProcesses && Object.keys(currentRunningProcesses).length > 0) {
+    if (isLoading) {
       loadingUpdateTimer = setInterval(updateLoadingText, 1000);
     }
 
@@ -1681,6 +1695,22 @@
         updateContextMeter(message.tokenTelemetry);
       }
       setLoading(isBusyStatus(nextStatus), nextStatus);
+    } else if (message.type === "llmStreamProgress") {
+      const progress = message.progress || null;
+      if (!progress || !progress.requestId) {
+        return;
+      }
+      if (progress.sessionId && currentSessionId && progress.sessionId !== currentSessionId) {
+        return;
+      }
+      if (progress.phase === "end") {
+        if (currentLlmStreamProgress && currentLlmStreamProgress.requestId === progress.requestId) {
+          currentLlmStreamProgress = null;
+        }
+      } else {
+        currentLlmStreamProgress = progress;
+      }
+      updateLoadingText();
     } else if (message.type === "userMessage") {
       // 显示用户消息（纯文本）
       addBubble(message.content || "", "user", message.meta, false);
