@@ -74,6 +74,100 @@ test("SessionManager preserves structured system content when building OpenAI me
   ]);
 });
 
+test("SessionManager preserves empty reasoning content on assistant tool calls", () => {
+  const manager = new SessionManager({
+    projectRoot: process.cwd(),
+    createOpenAIClient: () => ({
+      client: null,
+      model: "test-model",
+      thinkingEnabled: false
+    }),
+    getResolvedSettings: () => ({}),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {}
+  });
+
+  const message = (manager as any).buildAssistantMessage(
+    "session-1",
+    "",
+    [
+      {
+        id: "call-1",
+        type: "function",
+        function: { name: "read", arguments: "{}" }
+      }
+    ],
+    ""
+  ) as SessionMessage;
+
+  assert.deepEqual(message.messageParams, {
+    tool_calls: [
+      {
+        id: "call-1",
+        type: "function",
+        function: { name: "read", arguments: "{}" }
+      }
+    ],
+    reasoning_content: ""
+  });
+
+  const openAIMessages = (manager as any).buildOpenAIMessages([message], true) as Array<{
+    reasoning_content?: string;
+  }>;
+
+  assert.equal(openAIMessages[0]?.reasoning_content, "");
+});
+
+test("SessionManager repairs legacy thinking tool calls missing reasoning content", () => {
+  const manager = new SessionManager({
+    projectRoot: process.cwd(),
+    createOpenAIClient: () => ({
+      client: null,
+      model: "test-model",
+      thinkingEnabled: false
+    }),
+    getResolvedSettings: () => ({}),
+    renderMarkdown: (text) => text,
+    onAssistantMessage: () => {}
+  });
+
+  const messages: SessionMessage[] = [
+    {
+      id: "assistant-tool",
+      sessionId: "session-1",
+      role: "assistant",
+      content: "",
+      contentParams: null,
+      messageParams: {
+        tool_calls: [
+          {
+            id: "call-1",
+            type: "function",
+            function: { name: "read", arguments: "{}" }
+          }
+        ]
+      },
+      compacted: false,
+      visible: false,
+      createTime: "2026-01-01T00:00:00.000Z",
+      updateTime: "2026-01-01T00:00:00.000Z"
+    }
+  ];
+
+  const thinkingMessages = (manager as any).buildOpenAIMessages(messages, true) as Array<{
+    reasoning_content?: string;
+  }>;
+  const nonThinkingMessages = (manager as any).buildOpenAIMessages(messages, false) as Array<{
+    reasoning_content?: string;
+  }>;
+
+  assert.equal(thinkingMessages[0]?.reasoning_content, "");
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(nonThinkingMessages[0] ?? {}, "reasoning_content"),
+    false
+  );
+});
+
 test("createSession reports a new prompt with the machineId token", async () => {
   const workspace = createTempDir("deepcode-session-workspace-");
   const home = createTempDir("deepcode-session-home-");

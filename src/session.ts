@@ -551,7 +551,7 @@ ${skillMd}
           await this.compactSession(sessionId);
         }
 
-        const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId));
+        const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId), thinkingEnabled);
         const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
         const response = await client.chat.completions.create(
             {
@@ -567,8 +567,8 @@ ${skillMd}
         const content = message?.content ?? "";
         const rawToolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
         toolCalls = Array.isArray(rawToolCalls) && rawToolCalls.length > 0 ? rawToolCalls : null;
-        const thinking =
-            (message as { reasoning_content?: string } | undefined)?.reasoning_content ?? null;
+        const rawThinking = (message as { reasoning_content?: unknown } | undefined)?.reasoning_content;
+        const thinking = typeof rawThinking === "string" ? rawThinking : null;
         const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
         // const html = content ? this.renderMarkdown(content) : "";
 
@@ -1056,12 +1056,13 @@ ${skillMd}
       reasoningContent?: string | null
   ): SessionMessage {
     const now = new Date().toISOString();
+    const hasReasoningContent = reasoningContent != null;
     const messageParams: { tool_calls?: unknown[]; reasoning_content?: string } | null =
-      toolCalls || reasoningContent ? {} : null;
+      toolCalls || hasReasoningContent ? {} : null;
     if (toolCalls) {
       messageParams!.tool_calls = toolCalls;
     }
-    if (reasoningContent) {
+    if (hasReasoningContent) {
       messageParams!.reasoning_content = reasoningContent;
     }
     return {
@@ -1155,7 +1156,10 @@ ${skillMd}
     return { waitingForUser };
   }
 
-  private buildOpenAIMessages(messages: SessionMessage[]): ChatCompletionMessageParam[] {
+  private buildOpenAIMessages(
+    messages: SessionMessage[],
+    thinkingEnabled: boolean,
+  ): ChatCompletionMessageParam[] {
     return messages
         .filter((message) => !message.compacted)
         .map((message) => {
@@ -1174,8 +1178,12 @@ ${skillMd}
           if (messageParams?.tool_call_id) {
             (base as { tool_call_id?: string }).tool_call_id = messageParams.tool_call_id;
           }
-          if (messageParams?.reasoning_content && typeof messageParams?.reasoning_content === "string") {
+          if (typeof messageParams?.reasoning_content === "string") {
             (base as { reasoning_content?: string }).reasoning_content = messageParams.reasoning_content;
+          } else if (thinkingEnabled && message.role === "assistant" && messageParams?.tool_calls) {
+            // Thinking-mode providers require replayed tool-call assistant messages
+            // to include the reasoning_content field, even when it is empty.
+            (base as { reasoning_content?: string }).reasoning_content = "";
           }
 
           if ((message.role === "user" || message.role === "system") && message.contentParams) {
