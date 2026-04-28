@@ -14,8 +14,7 @@
     "API_KEY": "sk-..."
   },
   "thinkingEnabled": true,
-  "reasoningEffort": "max",
-  "notify": "~/.deepcode/notify.sh"
+  "reasoningEffort": "max"
 }
 ```
 
@@ -42,9 +41,34 @@ Deep Code 支持 agent skills，允许您扩展助手的能力：
 
 ![screenshot](resources/deepcode_screenshot.png)
 
-## 常见问题：如何将 Deep Code 从左侧边栏移动到右侧边栏（Secondary Side Bar）？
+## 常见问题
+
+### 如何将 Deep Code 从左侧边栏移动到右侧边栏（Secondary Side Bar）？
 
 ![faq1](resources/faq1.gif)
+
+### Deep Code是否支持理解图片？
+
+Deep Code支持多模态，但目前deepseek-v4不支持多模态。有些模型虽然有多模态能力，但对多轮对话请求的限制太严。目前多模态输入推荐使用火山方舟的Doubao-Seed-2.0-pro模型，适配效果最好。
+
+### 怎样在任务完成后自动给Slack发消息？
+
+编写一个调用Slack webhook的Shell通知脚本，然后在`~/.deepcode/settings.json`中将`notify`字段设为该脚本的完整路径即可。详细步骤可参考：https://binfer.net/share/jby5xnc-so6g
+
+### 是否支持Coding Plan？
+
+支持。只要把`~/.deepcode/settings.json`的env.BASE_URL配置为OpenAI兼容的接口地址就行。以火山方舟的Coding Plan为例，`~/.deepcode/settings.json`这样配置：
+
+```json
+{
+  "env": {
+    "MODEL": "ark-code-latest",
+    "BASE_URL": "https://ark.cn-beijing.volces.com/api/coding/v3",
+    "API_KEY": "**************"
+  },
+  "thinkingEnabled": true
+}
+```
 
 ## 获取帮助
 - 在 GitHub Issues 上报告错误或请求功能 (https://github.com/lessweb/deepcode/issues)。
