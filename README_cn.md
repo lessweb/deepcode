@@ -31,10 +31,9 @@ Deep Code 支持 agent skills，允许您扩展助手的能力：
 - 原生支持[思考模式](https://api-docs.deepseek.com/guides/thinking_mode)和思考强度控制。
 
 ## 支持的模型
+
 - `deepseek-v4-pro`（推荐使用）
 - `deepseek-v4-flash`
-- `deepseek-v4-pro`
-- `deepseek-chat`
 - 任何其他 OpenAI 兼容模型
 
 ## 截图示例
