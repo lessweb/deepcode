@@ -270,6 +270,26 @@ test("Write requires a full read before overwriting an existing file", async () 
   assert.equal(blockedResult.error, "Must read the full existing file before writing.");
 });
 
+test("Write can overwrite an existing empty file without a prior read", async () => {
+  const workspace = createTempWorkspace();
+  const filePath = path.join(workspace, "empty.txt");
+  fs.writeFileSync(filePath, "", "utf8");
+
+  const writeResult = await handleWriteTool(
+    {
+      file_path: filePath,
+      content: "initialized\n"
+    },
+    createContext("write-empty-existing", workspace)
+  );
+
+  assert.equal(writeResult.ok, true);
+  assert.equal(writeResult.metadata?.type, "update");
+  assert.equal(writeResult.metadata?.cache_refreshed, true);
+  assert.match(String(writeResult.metadata?.diff_preview ?? ""), /\+initialized/);
+  assert.equal(fs.readFileSync(filePath, "utf8"), "initialized\n");
+});
+
 test("Edit rejects stale reads after the file changes on disk", async () => {
   const workspace = createTempWorkspace();
   const filePath = path.join(workspace, "stale.txt");

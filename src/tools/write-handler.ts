@@ -71,21 +71,23 @@ export async function handleWriteTool(
           };
         }
 
-        const fileState = getFileState(context.sessionId, filePath);
-        if (!fileState || !isFullFileView(fileState)) {
-          return {
-            ok: false,
-            name: "write",
-            error: "Must read the full existing file before writing."
-          };
-        }
+        if (stat.size > 0) {
+          const fileState = getFileState(context.sessionId, filePath);
+          if (!fileState || !isFullFileView(fileState)) {
+            return {
+              ok: false,
+              name: "write",
+              error: "Must read the full existing file before writing."
+            };
+          }
 
-        if (hasFileChangedSinceState(filePath, fileState)) {
-          return {
-            ok: false,
-            name: "write",
-            error: "File has been modified since read. Read it again before writing."
-          };
+          if (hasFileChangedSinceState(filePath, fileState)) {
+            return {
+              ok: false,
+              name: "write",
+              error: "File has been modified since read. Read it again before writing."
+            };
+          }
         }
       }
 
