@@ -1,6 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildNotifyEnv, formatDurationSeconds, launchNotifyScript, type NotifySpawn } from "../notify";
+import {
+  buildNotifyEnv,
+  formatDurationSeconds,
+  launchNotifyScript,
+  type NotifySpawn
+} from "../notify";
 import { resolveSettings } from "../settings";
 
 test("resolveSettings reads top-level thinkingEnabled, notify, and webSearchTool", () => {

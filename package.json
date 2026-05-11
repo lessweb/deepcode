@@ -72,19 +72,46 @@
     "test": "tsx --test src/tests/*.test.ts",
     "test:single": "tsx --test",
     "watch": "tsc -w -p ./ --noEmit",
-    "vscode:prepublish": "npm run compile"
+    "vscode:prepublish": "npm run compile",
+    "lint": "eslint src/",
+    "lint:fix": "eslint src/ --fix",
+    "lint:strict": "eslint src/ --max-warnings 0",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "check": "npm run format:check && npm run lint:strict",
+    "fix": "npm run format && npm run lint:fix",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,cjs}": [
+      "prettier --write",
+      "eslint --fix"
+    ],
+    "*.{json,md,css,html}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@types/markdown-it": "^14.1.1",
     "@types/node": "^20.12.7",
     "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.2",
+    "@typescript-eslint/parser": "^8.59.2",
     "esbuild": "^0.25.12",
+    "eslint": "^9.39.4",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-unicorn": "^64.0.0",
     "gray-matter": "^4.0.3",
+    "husky": "^9.1.7",
     "ignore": "^5.3.2",
+    "lint-staged": "^17.0.4",
     "markdown-it": "^14.1.1",
     "openai": "^6.35.0",
+    "prettier": "^3.8.3",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.2"
   },
   "dependencies": {
     "zod": "^4.4.3"

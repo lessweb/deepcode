@@ -65,10 +65,9 @@ export function getShellKind(shellPath: string): ShellKind {
 export function buildShellInitCommand(shellPath: string): string | null {
   switch (getShellKind(shellPath)) {
     case "zsh":
-      return [
-        'ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"',
-        'if [ -f "$ZSHRC" ]; then . "$ZSHRC"; fi'
-      ].join("; ");
+      return ['ZSHRC="${ZDOTDIR:-$HOME}/.zshrc"', 'if [ -f "$ZSHRC" ]; then . "$ZSHRC"; fi'].join(
+        "; "
+      );
     case "bash":
       return [
         'BASHRC="${BASH_ENV:-$HOME/.bashrc}"',
@@ -163,7 +162,10 @@ function findAllWindowsExecutableCandidates(executable: string): string[] {
       windowsHide: true
     });
     return filterWindowsExecutableCandidates([
-      ...output.split(/\r?\n/).map((line) => line.trim()).filter(Boolean),
+      ...output
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean),
       ...extraCandidates
     ]);
   } catch {

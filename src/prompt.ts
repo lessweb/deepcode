@@ -251,7 +251,7 @@ type PromptToolOptions = {
   webSearchEnabled?: boolean;
 };
 
-function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): string {
+function readToolDocs(extensionRoot: string, _options: PromptToolOptions = {}): string {
   const toolsDir = path.join(extensionRoot, "docs", "tools");
   if (!fs.existsSync(toolsDir)) {
     return "";
@@ -313,8 +313,8 @@ function getRuntimeContext(projectRoot: string): string {
     ...runtimeVersions,
     "command installed": {
       "ast-grep": checkToolInstalled("ast-grep"),
-      "ripgrep": checkToolInstalled("rg"),
-      "jq": checkToolInstalled("jq")
+      ripgrep: checkToolInstalled("rg"),
+      jq: checkToolInstalled("jq")
     }
   };
   return `# Local Workspace Environment\n\n\`\`\`json
@@ -421,7 +421,7 @@ export type ToolDefinition = {
   };
 };
 
-export function getTools(options: PromptToolOptions = {}): ToolDefinition[] {
+export function getTools(_options: PromptToolOptions = {}): ToolDefinition[] {
   const tools: ToolDefinition[] = [
     {
       type: "function",
@@ -433,18 +433,18 @@ export function getTools(options: PromptToolOptions = {}): ToolDefinition[] {
           properties: {
             command: {
               type: "string",
-              description: "The shell command to execute",
+              description: "The shell command to execute"
             },
             description: {
               type: "string",
               description:
-                'Clear, concise description of what this command does in active voice. Never use words like "complex" or "risk" in the description - just describe what it does.',
-            },
+                'Clear, concise description of what this command does in active voice. Never use words like "complex" or "risk" in the description - just describe what it does.'
+            }
           },
           required: ["command"],
-          additionalProperties: false,
-        },
-      },
+          additionalProperties: false
+        }
+      }
     },
     {
       type: "function",
@@ -464,75 +464,71 @@ export function getTools(options: PromptToolOptions = {}): ToolDefinition[] {
                 properties: {
                   question: {
                     type: "string",
-                    description: "The question to ask the user.",
+                    description: "The question to ask the user."
                   },
                   multiSelect: {
                     type: "boolean",
-                    description:
-                      "Whether the user may choose multiple options.",
+                    description: "Whether the user may choose multiple options."
                   },
                   options: {
                     type: "array",
-                    description:
-                      "A list of predefined options for the user to choose from.",
+                    description: "A list of predefined options for the user to choose from.",
                     items: {
                       type: "object",
                       properties: {
                         label: {
                           type: "string",
-                          description:
-                            "The display text for the option.",
+                          description: "The display text for the option."
                         },
                         description: {
                           type: "string",
                           description:
-                            "A detailed explanation or hint about this option to help the user understand what happens if they choose it.",
-                        },
+                            "A detailed explanation or hint about this option to help the user understand what happens if they choose it."
+                        }
                       },
-                      required: ["label"],
-                    },
-                  },
+                      required: ["label"]
+                    }
+                  }
                 },
-                required: ["question", "options"],
-              },
-            },
+                required: ["question", "options"]
+              }
+            }
           },
           required: ["questions"],
-          additionalProperties: false,
-        },
-      },
+          additionalProperties: false
+        }
+      }
     },
     {
       type: "function",
       function: {
         name: "read",
-        description:
-          "Read files from the filesystem (text, images, PDFs, notebooks).",
+        description: "Read files from the filesystem (text, images, PDFs, notebooks).",
         parameters: {
           type: "object",
           properties: {
             file_path: {
               type: "string",
-              description: "UNIX-style path to file",
+              description: "UNIX-style path to file"
             },
             offset: {
               type: "number",
-              description: "Line number to start reading from",
+              description: "Line number to start reading from"
             },
             limit: {
               type: "number",
-              description: "Number of lines to read",
+              description: "Number of lines to read"
             },
             pages: {
               type: "string",
               description:
-                'Page range for PDF files (e.g., "1-5", "3", "10-20"). Only applicable to PDF files.',
-            },
+                'Page range for PDF files (e.g., "1-5", "3", "10-20"). Only applicable to PDF files.'
+            }
           },
           required: ["file_path"],
-          additionalProperties: false,
-        },
-      },
+          additionalProperties: false
+        }
+      }
     },
     {
       type: "function",
@@ -545,17 +541,18 @@ export function getTools(options: PromptToolOptions = {}): ToolDefinition[] {
           properties: {
             file_path: {
               type: "string",
-              description: "Absolute path to file",
+              description: "Absolute path to file"
             },
             content: {
               type: "string",
-              description: "Complete file content as a single string. Serialize JSON documents before writing.",
-            },
+              description:
+                "Complete file content as a single string. Serialize JSON documents before writing."
+            }
           },
           required: ["file_path", "content"],
-          additionalProperties: false,
-        },
-      },
+          additionalProperties: false
+        }
+      }
     },
     {
       type: "function",
@@ -567,37 +564,37 @@ export function getTools(options: PromptToolOptions = {}): ToolDefinition[] {
           properties: {
             file_path: {
               type: "string",
-              description: "Absolute path to file. Optional when snippet_id is provided.",
+              description: "Absolute path to file. Optional when snippet_id is provided."
             },
             snippet_id: {
               type: "string",
-              description: "Snippet id returned by the Read or Edit tool to scope the search range after a partial read.",
+              description:
+                "Snippet id returned by the Read or Edit tool to scope the search range after a partial read."
             },
             old_string: {
               type: "string",
-              description: "Exact text to replace inside the file or snippet scope",
+              description: "Exact text to replace inside the file or snippet scope"
             },
             new_string: {
               type: "string",
-              description: "Replacement text (must differ from old_string)",
+              description: "Replacement text (must differ from old_string)"
             },
             replace_all: {
               type: "boolean",
-              description:
-                "Replace all occurences of old_string (default false)",
-              default: false,
+              description: "Replace all occurences of old_string (default false)",
+              default: false
             },
             expected_occurrences: {
               type: "number",
               description:
-                "Expected number of matches, especially useful as a safety check with replace_all",
-            },
+                "Expected number of matches, especially useful as a safety check with replace_all"
+            }
           },
           required: ["old_string", "new_string"],
-          additionalProperties: false,
-        },
-      },
-    },
+          additionalProperties: false
+        }
+      }
+    }
   ];
 
   tools.push({
@@ -610,13 +607,14 @@ export function getTools(options: PromptToolOptions = {}): ToolDefinition[] {
         properties: {
           query: {
             type: "string",
-            description: "A search query phrased as a clear, specific natural language question or statement that includes key context.",
-          },
+            description:
+              "A search query phrased as a clear, specific natural language question or statement that includes key context."
+          }
         },
         required: ["query"],
-        additionalProperties: false,
-      },
-    },
+        additionalProperties: false
+      }
+    }
   });
 
   return tools;

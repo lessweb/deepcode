@@ -57,6 +57,7 @@ type TextReadResult = {
   timestamp: number;
 };
 
+// eslint-disable-next-line require-await
 export async function handleReadTool(
   args: Record<string, unknown>,
   context: ToolExecutionContext
@@ -66,7 +67,7 @@ export async function handleReadTool(
     return {
       ok: false,
       name: "read",
-      error: "Missing required \"file_path\" string."
+      error: 'Missing required "file_path" string.'
     };
   }
 
@@ -101,8 +102,7 @@ export async function handleReadTool(
           ok: false,
           name: "read",
           error:
-            "file_path must be an absolute path. " +
-            `The file_path "${filePath}" is ambiguous.`
+            "file_path must be an absolute path. " + `The file_path "${filePath}" is ambiguous.`
         };
       } else {
         return {
@@ -170,7 +170,7 @@ export async function handleReadTool(
         return {
           ok: false,
           name: "read",
-          error: `PDF has ${pageCount} pages; provide \"pages\" to read a range.`
+          error: `PDF has ${pageCount} pages; provide "pages" to read a range.`
         };
       }
 
@@ -226,9 +226,7 @@ export async function handleReadTool(
           mime,
           bytes: buffer.length
         },
-        followUpMessages: [
-          buildImageFollowUpMessage(filePath, mime, buffer)
-        ]
+        followUpMessages: [buildImageFollowUpMessage(filePath, mime, buffer)]
       };
     }
 
@@ -254,10 +252,9 @@ export async function handleReadTool(
       content: textResult.content,
       timestamp: textResult.timestamp,
       offset: textResult.isPartialView ? textResult.startLine : undefined,
-      limit:
-        textResult.isPartialView
-          ? Math.max(1, textResult.endLine - textResult.startLine + 1)
-          : undefined,
+      limit: textResult.isPartialView
+        ? Math.max(1, textResult.endLine - textResult.startLine + 1)
+        : undefined,
       isPartialView: textResult.isPartialView,
       encoding: textResult.encoding,
       lineEndings: textResult.lineEndings
@@ -558,7 +555,7 @@ function parsePageRange(input: string): PageRange {
     throw new Error("pages must be a non-empty string.");
   }
   if (trimmed.includes(",")) {
-    throw new Error("pages must be a single range like \"1-5\" or \"3\".");
+    throw new Error('pages must be a single range like "1-5" or "3".');
   }
 
   const parts = trimmed.split("-").map((part) => part.trim());
@@ -576,7 +573,7 @@ function parsePageRange(input: string): PageRange {
     return { start, end, count: end - start + 1 };
   }
 
-  throw new Error("pages must be a single range like \"1-5\" or \"3\".");
+  throw new Error('pages must be a single range like "1-5" or "3".');
 }
 
 function parsePositiveInt(value: string, label: string): number {
@@ -618,8 +615,7 @@ function readNotebook(filePath: string): string {
 
     const outputs = Array.isArray(cell.outputs) ? cell.outputs : [];
     outputs.forEach((output, outputIndex) => {
-      const outputType =
-        typeof output.output_type === "string" ? output.output_type : "output";
+      const outputType = typeof output.output_type === "string" ? output.output_type : "output";
       lines.push(`# Output ${outputIndex + 1} (${outputType})`);
       lines.push(...formatNotebookOutput(output));
     });

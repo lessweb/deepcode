@@ -25,11 +25,7 @@ test("WebSearch executes the configured script with the query as one argument", 
   const scriptPath = path.join(workspace, "web-search.sh");
   fs.writeFileSync(
     scriptPath,
-    [
-      "#!/bin/sh",
-      "printf 'query=%s\\n' \"$1\"",
-      "printf 'cwd=%s\\n' \"$PWD\""
-    ].join("\n"),
+    ["#!/bin/sh", "printf 'query=%s\\n' \"$1\"", "printf 'cwd=%s\\n' \"$PWD\""].join("\n"),
     "utf8"
   );
   fs.chmodSync(scriptPath, 0o755);
@@ -47,10 +43,7 @@ test("WebSearch executes the configured script with the query as one argument", 
   const realWorkspace = fs.realpathSync(workspace);
 
   assert.equal(result.ok, true);
-  assert.equal(
-    result.output,
-    `query=latest node release\ncwd=${realWorkspace}\n`
-  );
+  assert.equal(result.output, `query=latest node release\ncwd=${realWorkspace}\n`);
   assert.equal(starts.length, 1);
   assert.match(starts[0].command, /^WebSearch: latest node release$/);
   assert.deepEqual(exits, [starts[0].id]);
@@ -65,6 +58,7 @@ test("WebSearch uses the default API when no script is configured", async () => 
   const fakeClient = {
     chat: {
       completions: {
+        // eslint-disable-next-line require-await
         create: async ({ messages }: { messages: Array<{ content: string }> }) => {
           const prompt = messages[0]?.content ?? "";
           if (prompt.includes("Return strict JSON:")) {
@@ -72,7 +66,8 @@ test("WebSearch uses the default API when no script is configured", async () => 
               choices: [
                 {
                   message: {
-                    content: "{\"dominant_language\":\"en\",\"reason\":\"Most Node.js release notes are published in English.\"}"
+                    content:
+                      '{"dominant_language":"en","reason":"Most Node.js release notes are published in English."}'
                   }
                 }
               ]
@@ -81,13 +76,15 @@ test("WebSearch uses the default API when no script is configured", async () => 
           throw new Error(`Unexpected chat prompt: ${prompt}`);
         }
       }
-    },
+    }
   } as unknown as OpenAI;
 
+  // eslint-disable-next-line require-await
   globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
     fetchCalls.push({ input, init });
     return {
       ok: true,
+      // eslint-disable-next-line require-await
       json: async () => ({
         success: true,
         result: JSON.stringify(

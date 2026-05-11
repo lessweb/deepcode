@@ -6,29 +6,36 @@ export type ValidationResult =
   | { ok: false; error: string };
 
 export function semanticBoolean(defaultValue = false) {
-  return z.preprocess(
-    (value) => {
-      if (value === "true") {
-        return true;
-      }
-      if (value === "false") {
-        return false;
-      }
-      return value;
-    },
-    z.boolean().default(defaultValue)
-  );
+  return z.preprocess((value) => {
+    if (value === "true") {
+      return true;
+    }
+    if (value === "false") {
+      return false;
+    }
+    return value;
+  }, z.boolean().default(defaultValue));
 }
 
 export function semanticInteger(label: string, options: { min?: number } = {}) {
-  return z.preprocess((value) => {
-    if (typeof value === "string" && value.trim()) {
-      return Number(value);
-    }
-    return value;
-  }, z.number().int().min(options.min ?? Number.MIN_SAFE_INTEGER, `${label} must be >= ${options.min ?? Number.MIN_SAFE_INTEGER}.`));
+  return z.preprocess(
+    (value) => {
+      if (typeof value === "string" && value.trim()) {
+        return Number(value);
+      }
+      return value;
+    },
+    z
+      .number()
+      .int()
+      .min(
+        options.min ?? Number.MIN_SAFE_INTEGER,
+        `${label} must be >= ${options.min ?? Number.MIN_SAFE_INTEGER}.`
+      )
+  );
 }
 
+// eslint-disable-next-line require-await
 export async function executeValidatedTool<TSchema extends z.ZodType<Record<string, unknown>>>(
   name: string,
   schema: TSchema,

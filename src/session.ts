@@ -3,7 +3,10 @@ import * as path from "path";
 import * as os from "os";
 import * as crypto from "crypto";
 import matter from "gray-matter";
-import type { ChatCompletionMessageParam, ChatCompletionContentPart } from "openai/resources/chat/completions";
+import type {
+  ChatCompletionMessageParam,
+  ChatCompletionContentPart
+} from "openai/resources/chat/completions";
 import { launchNotifyScript } from "./notify";
 import { buildThinkingRequestOptions } from "./openai-thinking";
 import { DEEPSEEK_V4_MODELS } from "./model-capabilities";
@@ -34,15 +37,16 @@ function isUsageRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-function summarizeCompletionOptions(options?: Record<string, unknown>): Record<string, unknown> | undefined {
+function summarizeCompletionOptions(
+  options?: Record<string, unknown>
+): Record<string, unknown> | undefined {
   if (!options) {
     return undefined;
   }
   return {
     ...options,
-    signal: options.signal instanceof AbortSignal
-      ? { aborted: options.signal.aborted }
-      : options.signal
+    signal:
+      options.signal instanceof AbortSignal ? { aborted: options.signal.aborted } : options.signal
   };
 }
 
@@ -63,7 +67,10 @@ function addUsageValue(current: unknown, next: unknown): unknown {
   return next;
 }
 
-function accumulateUsage(current: unknown | null, next: unknown | null | undefined): unknown | null {
+function accumulateUsage(
+  current: unknown | null,
+  next: unknown | null | undefined
+): unknown | null {
   if (next == null) {
     return current ?? null;
   }
@@ -99,7 +106,7 @@ export type SessionEntry = {
   activeTokens: number;
   createTime: string;
   updateTime: string;
-  processes: Map<string, { startTime: string; command: string }> | null;  // {pid: {startTime, command}}
+  processes: Map<string, { startTime: string; command: string }> | null; // {pid: {startTime, command}}
 };
 
 export type SessionsIndex = {
@@ -279,10 +286,12 @@ export class SessionManager {
 
     let response: unknown;
     try {
-      response = await (client.chat.completions.create as unknown as (
-        body: Record<string, unknown>,
-        options?: Record<string, unknown>
-      ) => Promise<unknown>)(streamRequest, options);
+      response = await (
+        client.chat.completions.create as unknown as (
+          body: Record<string, unknown>,
+          options?: Record<string, unknown>
+        ) => Promise<unknown>
+      )(streamRequest, options);
     } catch (error) {
       this.logChatCompletionDebug(debug, {
         timestamp: new Date().toISOString(),
@@ -313,7 +322,10 @@ export class SessionManager {
       throw error;
     }
 
-    if (!response || typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !== "function") {
+    if (
+      !response ||
+      typeof (response as { [Symbol.asyncIterator]?: unknown })[Symbol.asyncIterator] !== "function"
+    ) {
       this.emitLlmStreamProgress(requestId, startedAt, estimatedTokens, "end", sessionId);
       this.logChatCompletionDebug(debug, {
         timestamp: new Date().toISOString(),
@@ -327,7 +339,10 @@ export class SessionManager {
         request: streamRequest,
         response
       });
-      return response as { choices?: Array<{ message?: Record<string, unknown> }>; usage?: unknown };
+      return response as {
+        choices?: Array<{ message?: Record<string, unknown> }>;
+        usage?: unknown;
+      };
     }
 
     let content = "";
@@ -335,11 +350,14 @@ export class SessionManager {
     let refusal: string | null = null;
     let usage: unknown = null;
     const responseChunks: unknown[] = [];
-    const toolCallsByIndex = new Map<number, {
-      id?: string;
-      type?: string;
-      function?: { name?: string; arguments?: string };
-    }>();
+    const toolCallsByIndex = new Map<
+      number,
+      {
+        id?: string;
+        type?: string;
+        function?: { name?: string; arguments?: string };
+      }
+    >();
 
     const trackText = (value: unknown) => {
       if (typeof value !== "string" || value.length === 0) {
@@ -388,7 +406,8 @@ export class SessionManager {
               if (!isUsageRecord(rawToolCall)) {
                 continue;
               }
-              const index = typeof rawToolCall.index === "number" ? rawToolCall.index : toolCallsByIndex.size;
+              const index =
+                typeof rawToolCall.index === "number" ? rawToolCall.index : toolCallsByIndex.size;
               const current = toolCallsByIndex.get(index) ?? {};
               if (typeof rawToolCall.id === "string") {
                 current.id = rawToolCall.id;
@@ -504,35 +523,43 @@ Response in JSON format:
 \`\`\`\n
 If none of the available skills match, respond with an empty array, i.e. \`{"skillNames": []}\`.\n
 The candidate skills are as follows:\n\n`;
-    const simpleSkills = skills.filter((x) => !x.isLoaded).map((x) => {
-      return {name: x.name, description: x.description};
-    })
+    const simpleSkills = skills
+      .filter((x) => !x.isLoaded)
+      .map((x) => {
+        return { name: x.name, description: x.description };
+      });
     if (simpleSkills.length === 0) {
       return [];
     }
     systemPrompt += "```\n" + JSON.stringify(simpleSkills, null, 2) + "\n```";
-    
+
     const { client, model, baseURL, debugLogEnabled } = this.createOpenAIClient();
     if (!client) {
       return [];
     }
 
     try {
-      const response = await this.createChatCompletionStream(client, {
-        model,
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        response_format: { type: "json_object" }
-      }, options?.signal ? { signal: options.signal } : undefined, options?.sessionId, {
-        enabled: debugLogEnabled,
-        location: "SessionManager.identifyMatchingSkillNames",
-        baseURL,
-        params: { purpose: "skill-matching" }
-      });
+      const response = await this.createChatCompletionStream(
+        client,
+        {
+          model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          response_format: { type: "json_object" }
+        },
+        options?.signal ? { signal: options.signal } : undefined,
+        options?.sessionId,
+        {
+          enabled: debugLogEnabled,
+          location: "SessionManager.identifyMatchingSkillNames",
+          baseURL,
+          params: { purpose: "skill-matching" }
+        }
+      );
       this.throwIfAborted(options?.signal);
-      
+
       const rawContent = response.choices?.[0]?.message?.content;
       const content = typeof rawContent === "string" ? rawContent : "";
       if (!content) {
@@ -543,7 +570,7 @@ The candidate skills are as follows:\n\n`;
       if (parsed && Array.isArray(parsed.skillNames)) {
         return parsed.skillNames;
       }
-      
+
       return [];
     } catch (error) {
       if (this.isAbortLikeError(error) || options?.signal?.aborted) {
@@ -553,6 +580,7 @@ The candidate skills are as follows:\n\n`;
     }
   }
 
+  // eslint-disable-next-line require-await
   async listSkills(sessionId?: string): Promise<SkillInfo[]> {
     const homeDir = os.homedir();
     const agentsRoot = path.join(homeDir, ".agents", "skills");
@@ -589,7 +617,9 @@ The candidate skills are as follows:\n\n`;
         } catch {
           continue;
         }
-        results.push(this.readSkillInfo(skillPath, `${displayRoot}/${skillName}/SKILL.md`, skillName));
+        results.push(
+          this.readSkillInfo(skillPath, `${displayRoot}/${skillName}/SKILL.md`, skillName)
+        );
       }
       return results;
     };
@@ -608,8 +638,8 @@ The candidate skills are as follows:\n\n`;
       const loadedSkillKeys = this.getLoadedSkillKeys(sessionId);
       for (const skill of skillsByName.values()) {
         if (
-          loadedSkillKeys.has(this.getSkillKey(skill))
-          || loadedSkillKeys.has(this.getSkillKeyByName(skill.name))
+          loadedSkillKeys.has(this.getSkillKey(skill)) ||
+          loadedSkillKeys.has(this.getSkillKeyByName(skill.name))
         ) {
           skill.isLoaded = true;
         }
@@ -642,7 +672,7 @@ The candidate skills are as follows:\n\n`;
     const fallbackSkill: SkillInfo = {
       name: fallbackName.replace(/_/g, "-"),
       path: displayPath,
-      description: "",
+      description: ""
     };
 
     try {
@@ -655,9 +685,7 @@ The candidate skills are as follows:\n\n`;
             : fallbackSkill.name,
         path: displayPath,
         description:
-          typeof parsed.data.description === "string"
-            ? parsed.data.description.trim()
-            : "",
+          typeof parsed.data.description === "string" ? parsed.data.description.trim() : ""
       };
     } catch {
       return fallbackSkill;
@@ -700,14 +728,17 @@ The candidate skills are as follows:\n\n`;
         ...existingSkill,
         ...skill,
         description: skill.description ?? existingSkill?.description ?? "",
-        isLoaded: Boolean(existingSkill?.isLoaded || skill.isLoaded),
+        isLoaded: Boolean(existingSkill?.isLoaded || skill.isLoaded)
       });
     }
 
     return Array.from(dedupedSkills.values());
   }
 
-  private async normalizeSkills(skills?: SkillInfo[], sessionId?: string): Promise<SkillInfo[] | undefined> {
+  private async normalizeSkills(
+    skills?: SkillInfo[],
+    sessionId?: string
+  ): Promise<SkillInfo[] | undefined> {
     const dedupedSkills = this.dedupeSkills(skills);
     if (!dedupedSkills || dedupedSkills.length === 0) {
       return undefined;
@@ -722,8 +753,8 @@ The candidate skills are as follows:\n\n`;
 
     return dedupedSkills.map((skill) => {
       const matchedSkill =
-        availableSkillsByKey.get(this.getSkillKey(skill))
-        ?? availableSkillsByKey.get(this.getSkillKeyByName(skill.name));
+        availableSkillsByKey.get(this.getSkillKey(skill)) ??
+        availableSkillsByKey.get(this.getSkillKeyByName(skill.name));
       if (!matchedSkill) {
         return skill;
       }
@@ -731,7 +762,7 @@ The candidate skills are as follows:\n\n`;
         ...matchedSkill,
         ...skill,
         description: matchedSkill.description || skill.description,
-        isLoaded: Boolean(matchedSkill.isLoaded || skill.isLoaded),
+        isLoaded: Boolean(matchedSkill.isLoaded || skill.isLoaded)
       };
     });
   }
@@ -765,7 +796,10 @@ The candidate skills are as follows:\n\n`;
     }
   }
 
-  async createSession(userPrompt: UserPromptContent, controller?: AbortController): Promise<string> {
+  async createSession(
+    userPrompt: UserPromptContent,
+    controller?: AbortController
+  ): Promise<string> {
     this.reportNewPrompt();
     const signal = controller?.signal;
     this.throwIfAborted(signal);
@@ -803,16 +837,14 @@ The candidate skills are as follows:\n\n`;
       processes: null
     };
     index.entries.push(entry);
-    const sortedEntries = index.entries
-      .slice()
-      .sort((a, b) => {
-        const aTime = Date.parse(a.updateTime);
-        const bTime = Date.parse(b.updateTime);
-        if (Number.isNaN(aTime) || Number.isNaN(bTime)) {
-          return b.updateTime.localeCompare(a.updateTime);
-        }
-        return bTime - aTime;
-      });
+    const sortedEntries = index.entries.slice().sort((a, b) => {
+      const aTime = Date.parse(a.updateTime);
+      const bTime = Date.parse(b.updateTime);
+      if (Number.isNaN(aTime) || Number.isNaN(bTime)) {
+        return b.updateTime.localeCompare(a.updateTime);
+      }
+      return bTime - aTime;
+    });
     const keptEntries = sortedEntries.slice(0, MAX_SESSION_ENTRIES);
     const keptIds = new Set(keptEntries.map((item) => item.id));
     const droppedEntries = sortedEntries.filter((item) => !keptIds.has(item.id));
@@ -858,7 +890,11 @@ ${skillMd}
     return sessionId;
   }
 
-  async replySession(sessionId: string, userPrompt: UserPromptContent, controller?: AbortController): Promise<void> {
+  async replySession(
+    sessionId: string,
+    userPrompt: UserPromptContent,
+    controller?: AbortController
+  ): Promise<void> {
     const signal = controller?.signal;
     this.throwIfAborted(signal);
     const now = new Date().toISOString();
@@ -878,7 +914,10 @@ ${skillMd}
 
     if (userPrompt.text) {
       const skills = await this.listSkills(sessionId);
-      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, { signal, sessionId });
+      const skillNames = await this.identifyMatchingSkillNames(skills, userPrompt.text, {
+        signal,
+        sessionId
+      });
       this.throwIfAborted(signal);
       const skillSet = new Set(skillNames);
       const matchedSkill = skills.filter((skill) => skillSet.has(skill.name));
@@ -915,7 +954,8 @@ ${skillMd}
 
   async activateSession(sessionId: string, controller?: AbortController): Promise<void> {
     const startedAt = Date.now();
-    const { client, model, baseURL, thinkingEnabled, reasoningEffort, debugLogEnabled, notify } = this.createOpenAIClient();
+    const { client, model, baseURL, thinkingEnabled, reasoningEffort, debugLogEnabled, notify } =
+      this.createOpenAIClient();
     const now = new Date().toISOString();
 
     if (!client) {
@@ -926,8 +966,12 @@ ${skillMd}
         updateTime: now
       }));
       this.onAssistantMessage(
-        this.buildAssistantMessage(sessionId, "OpenAI API key not found. Please configure ~/.deepcode/settings.json.", null),
-        false,
+        this.buildAssistantMessage(
+          sessionId,
+          "OpenAI API key not found. Please configure ~/.deepcode/settings.json.",
+          null
+        ),
+        false
       );
       this.maybeNotifyTaskCompletion(sessionId, notify, startedAt);
       return;
@@ -954,7 +998,7 @@ ${skillMd}
     this.sessionControllers.set(sessionId, sessionController);
 
     try {
-      const maxIterations = 80000;  // about 1K RMB cost
+      const maxIterations = 80000; // about 1K RMB cost
       let toolCalls: unknown[] | null = null;
 
       for (let iteration = 0; iteration < maxIterations; iteration++) {
@@ -969,14 +1013,25 @@ ${skillMd}
 
         const compactPromptTokenThreshold = getCompactPromptTokenThreshold(model);
         if (session.activeTokens > compactPromptTokenThreshold) {
-          const message = this.buildAssistantMessage(sessionId, "The conversation is getting long, compacting...", null);
+          const message = this.buildAssistantMessage(
+            sessionId,
+            "The conversation is getting long, compacting...",
+            null
+          );
           message.meta = { asThinking: true };
           this.onAssistantMessage(message, false);
           await this.compactSession(sessionId, sessionController.signal);
         }
 
-        const messages = this.buildOpenAIMessages(this.listSessionMessages(sessionId), thinkingEnabled);
-        const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
+        const messages = this.buildOpenAIMessages(
+          this.listSessionMessages(sessionId),
+          thinkingEnabled
+        );
+        const thinkingOptions = buildThinkingRequestOptions(
+          thinkingEnabled,
+          baseURL,
+          reasoningEffort
+        );
         const response = await this.createChatCompletionStream(
           client,
           {
@@ -998,9 +1053,11 @@ ${skillMd}
         const message = response.choices?.[0]?.message;
         const rawContent = message?.content;
         const content = typeof rawContent === "string" ? rawContent : "";
-        const rawToolCalls = (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
+        const rawToolCalls =
+          (message as { tool_calls?: unknown[] } | undefined)?.tool_calls ?? null;
         toolCalls = Array.isArray(rawToolCalls) && rawToolCalls.length > 0 ? rawToolCalls : null;
-        const rawThinking = (message as { reasoning_content?: unknown } | undefined)?.reasoning_content;
+        const rawThinking = (message as { reasoning_content?: unknown } | undefined)
+          ?.reasoning_content;
         const thinking = typeof rawThinking === "string" ? rawThinking : null;
         const refusal = (message as { refusal?: string } | undefined)?.refusal ?? null;
         // const html = content ? this.renderMarkdown(content) : "";
@@ -1008,7 +1065,12 @@ ${skillMd}
         if (this.isInterrupted(sessionId)) {
           return;
         }
-        const assistantMessage = this.buildAssistantMessage(sessionId, content, toolCalls, thinking);
+        const assistantMessage = this.buildAssistantMessage(
+          sessionId,
+          content,
+          toolCalls,
+          thinking
+        );
         this.appendSessionMessage(sessionId, assistantMessage);
         this.onAssistantMessage(assistantMessage, true);
 
@@ -1061,9 +1123,13 @@ ${skillMd}
         updateTime: new Date().toISOString()
       }));
       this.onAssistantMessage(
-        this.buildAssistantMessage(sessionId, "The AI agent has taken several steps but hasn't reached a conclusion yet. Do you want to continue?", null),
-        false,
-      )
+        this.buildAssistantMessage(
+          sessionId,
+          "The AI agent has taken several steps but hasn't reached a conclusion yet. Do you want to continue?",
+          null
+        ),
+        false
+      );
     } catch (error) {
       const errMessage = error instanceof Error ? error.message : String(error);
       const aborted = this.isAbortLikeError(error) || sessionController.signal.aborted;
@@ -1077,7 +1143,7 @@ ${skillMd}
       if (!aborted) {
         this.onAssistantMessage(
           this.buildAssistantMessage(sessionId, `Request failed: ${errMessage}`, null),
-          false,
+          false
         );
       }
     } finally {
@@ -1090,23 +1156,24 @@ ${skillMd}
 
   async compactSession(sessionId: string, signal?: AbortSignal): Promise<void> {
     this.throwIfAborted(signal);
-    const { client, model, baseURL, thinkingEnabled, reasoningEffort, debugLogEnabled } = this.createOpenAIClient();
+    const { client, model, baseURL, thinkingEnabled, reasoningEffort, debugLogEnabled } =
+      this.createOpenAIClient();
     if (!client) {
       return;
     }
-    const sessionMessages = this.listSessionMessages(sessionId).filter((message) => !message.compacted);
+    const sessionMessages = this.listSessionMessages(sessionId).filter(
+      (message) => !message.compacted
+    );
     if (sessionMessages.length === 0) {
       return;
     }
 
-    const startIndex = sessionMessages.findIndex(
-      (message) => message.role !== "system"
-    );
+    const startIndex = sessionMessages.findIndex((message) => message.role !== "system");
     if (startIndex === -1) {
       return;
     }
 
-    const searchStart = Math.floor(startIndex + (sessionMessages.length - startIndex) * 2 / 3);
+    const searchStart = Math.floor(startIndex + ((sessionMessages.length - startIndex) * 2) / 3);
     let endIndex = -1;
     for (let i = Math.max(searchStart, startIndex); i < sessionMessages.length; i += 1) {
       if (sessionMessages[i].role !== "tool") {
@@ -1120,16 +1187,22 @@ ${skillMd}
 
     const compactPrompt = getCompactPrompt(sessionMessages.slice(startIndex, endIndex));
     const thinkingOptions = buildThinkingRequestOptions(thinkingEnabled, baseURL, reasoningEffort);
-    const response = await this.createChatCompletionStream(client, {
-      model,
-      messages: [{ role: "user", content: compactPrompt }],
-      ...thinkingOptions
-    }, signal ? { signal } : undefined, sessionId, {
-      enabled: debugLogEnabled,
-      location: "SessionManager.compactSession",
-      baseURL,
-      params: { thinkingEnabled, reasoningEffort }
-    });
+    const response = await this.createChatCompletionStream(
+      client,
+      {
+        model,
+        messages: [{ role: "user", content: compactPrompt }],
+        ...thinkingOptions
+      },
+      signal ? { signal } : undefined,
+      sessionId,
+      {
+        enabled: debugLogEnabled,
+        location: "SessionManager.compactSession",
+        baseURL,
+        params: { thinkingEnabled, reasoningEffort }
+      }
+    );
     this.throwIfAborted(signal);
     const rawLlmResponse = response.choices?.[0]?.message?.content;
     const llmResponse = typeof rawLlmResponse === "string" ? rawLlmResponse : "";
@@ -1259,7 +1332,7 @@ ${skillMd}
 
     this.onAssistantMessage(
       this.buildUserMessage(sessionId, { text: contentParts.join(" ") }),
-      false,
+      false
     );
   }
 
@@ -1316,7 +1389,10 @@ ${skillMd}
 
     return {
       ...message,
-      visible: typeof message.content === "string" ? !this.isInvisibleExecution(message.content) : message.visible,
+      visible:
+        typeof message.content === "string"
+          ? !this.isInvisibleExecution(message.content)
+          : message.visible,
       meta: nextMeta
     };
   }
@@ -1412,8 +1488,8 @@ ${skillMd}
   }
 
   private updateSessionEntry(
-      sessionId: string,
-      updater: (entry: SessionEntry) => SessionEntry
+    sessionId: string,
+    updater: (entry: SessionEntry) => SessionEntry
   ): SessionEntry | null {
     const index = this.loadSessionsIndex();
     const entryIndex = index.entries.findIndex((entry) => entry.id === sessionId);
@@ -1431,12 +1507,12 @@ ${skillMd}
   private buildUserMessage(sessionId: string, prompt: UserPromptContent): SessionMessage {
     const now = new Date().toISOString();
     const imageParams =
-        prompt.imageUrls
-            ?.filter((url) => Boolean(url))
-            .map((url) => ({
-              type: "image_url",
-              image_url: { url }
-            })) ?? [];
+      prompt.imageUrls
+        ?.filter((url) => Boolean(url))
+        .map((url) => ({
+          type: "image_url",
+          image_url: { url }
+        })) ?? [];
 
     return {
       id: crypto.randomUUID(),
@@ -1508,25 +1584,25 @@ ${skillMd}
       visible: true,
       createTime: now,
       updateTime: now,
-      meta: { skill: { ...skill, isLoaded: true } },
+      meta: { skill: { ...skill, isLoaded: true } }
     };
   }
 
   private buildAssistantMessage(
-      sessionId: string,
-      content: string | null,
-      toolCalls: unknown[] | null,
-      reasoningContent?: string | null
+    sessionId: string,
+    content: string | null,
+    toolCalls: unknown[] | null,
+    reasoningContent?: string | null
   ): SessionMessage {
     const now = new Date().toISOString();
     const hasReasoningContent = reasoningContent != null;
     const messageParams: { tool_calls?: unknown[]; reasoning_content?: string } | null =
       toolCalls || hasReasoningContent ? {} : null;
-    if (toolCalls) {
-      messageParams!.tool_calls = toolCalls;
+    if (toolCalls && messageParams) {
+      messageParams.tool_calls = toolCalls;
     }
-    if (hasReasoningContent) {
-      messageParams!.reasoning_content = reasoningContent;
+    if (hasReasoningContent && messageParams) {
+      messageParams.reasoning_content = reasoningContent;
     }
     return {
       id: crypto.randomUUID(),
@@ -1622,7 +1698,7 @@ ${skillMd}
 
   private buildOpenAIMessages(
     messages: SessionMessage[],
-    thinkingEnabled: boolean,
+    thinkingEnabled: boolean
   ): ChatCompletionMessageParam[] {
     const activeMessages = messages.filter((message) => !message.compacted);
     const toolPairings = this.pairToolMessages(activeMessages);
@@ -1649,7 +1725,9 @@ ${skillMd}
 
         const pairedToolIndex = toolPairings.get(this.buildToolPairingKey(index, toolCallIndex));
         if (pairedToolIndex != null) {
-          openAIMessages.push(this.sessionMessageToOpenAIMessage(activeMessages[pairedToolIndex], thinkingEnabled));
+          openAIMessages.push(
+            this.sessionMessageToOpenAIMessage(activeMessages[pairedToolIndex], thinkingEnabled)
+          );
           continue;
         }
 
@@ -1670,9 +1748,9 @@ ${skillMd}
     } as ChatCompletionMessageParam;
 
     const messageParams = message.messageParams as
-        | { tool_calls?: unknown[]; tool_call_id?: string; reasoning_content?: string }
-        | null
-        | undefined;
+      | { tool_calls?: unknown[]; tool_call_id?: string; reasoning_content?: string }
+      | null
+      | undefined;
     if (messageParams?.tool_calls) {
       (base as { tool_calls?: unknown[] }).tool_calls = messageParams.tool_calls;
     }
@@ -1693,15 +1771,15 @@ ${skillMd}
         contentParts.push({ type: "text", text: message.content });
       }
       const params = Array.isArray(message.contentParams)
-          ? message.contentParams
-          : [message.contentParams];
+        ? message.contentParams
+        : [message.contentParams];
       for (const param of params) {
         if (param && typeof param === "object") {
           contentParts.push(param as ChatCompletionContentPart);
         }
       }
       const contentValue: string | ChatCompletionContentPart[] =
-          contentParts.length > 0 ? contentParts : message.content ?? "";
+        contentParts.length > 0 ? contentParts : (message.content ?? "");
       (base as { content: string | ChatCompletionContentPart[] }).content = contentValue;
     }
 
@@ -1811,7 +1889,10 @@ ${skillMd}
     const toolFunction = this.findToolFunction(toolCalls, toolCallId);
     return {
       role: "tool",
-      content: this.buildInterruptedToolResult(toolFunction, "Previous tool call did not complete."),
+      content: this.buildInterruptedToolResult(
+        toolFunction,
+        "Previous tool call did not complete."
+      ),
       tool_call_id: toolCallId
     } as ChatCompletionMessageParam;
   }
@@ -1969,7 +2050,9 @@ ${skillMd}
     });
   }
 
-  private getProcessIds(processes: Map<string, { startTime: string; command: string }> | null): number[] {
+  private getProcessIds(
+    processes: Map<string, { startTime: string; command: string }> | null
+  ): number[] {
     if (!processes) {
       return [];
     }
@@ -1985,8 +2068,10 @@ ${skillMd}
 
   private buildInterruptedToolResult(toolFunction: unknown | null, reason: string): string {
     const toolName =
-      toolFunction && typeof toolFunction === "object" && typeof (toolFunction as { name?: unknown }).name === "string"
-        ? ((toolFunction as { name: string }).name)
+      toolFunction &&
+      typeof toolFunction === "object" &&
+      typeof (toolFunction as { name?: unknown }).name === "string"
+        ? (toolFunction as { name: string }).name
         : "tool";
     return JSON.stringify(
       {
@@ -2015,20 +2100,23 @@ ${skillMd}
   }
 
   private normalizeSessionEntry(entry: unknown): SessionEntry {
-    const value = (entry && typeof entry === "object") ? (entry as Record<string, unknown>) : {};
+    const value = entry && typeof entry === "object" ? (entry as Record<string, unknown>) : {};
     return {
       id: typeof value.id === "string" ? value.id : crypto.randomUUID(),
       summary: typeof value.summary === "string" ? value.summary : null,
       assistantReply: typeof value.assistantReply === "string" ? value.assistantReply : null,
-      assistantThinking: typeof value.assistantThinking === "string" ? value.assistantThinking : null,
+      assistantThinking:
+        typeof value.assistantThinking === "string" ? value.assistantThinking : null,
       assistantRefusal: typeof value.assistantRefusal === "string" ? value.assistantRefusal : null,
       toolCalls: Array.isArray(value.toolCalls) ? value.toolCalls : null,
       status: this.normalizeSessionStatus(value.status),
       failReason: typeof value.failReason === "string" ? value.failReason : null,
       usage: value.usage ?? null,
       activeTokens: typeof value.activeTokens === "number" ? value.activeTokens : 0,
-      createTime: typeof value.createTime === "string" ? value.createTime : new Date().toISOString(),
-      updateTime: typeof value.updateTime === "string" ? value.updateTime : new Date().toISOString(),
+      createTime:
+        typeof value.createTime === "string" ? value.createTime : new Date().toISOString(),
+      updateTime:
+        typeof value.updateTime === "string" ? value.updateTime : new Date().toISOString(),
       processes: this.deserializeProcesses(value.processes)
     };
   }
@@ -2047,7 +2135,9 @@ ${skillMd}
     return "pending";
   }
 
-  private deserializeProcesses(value: unknown): Map<string, { startTime: string; command: string }> | null {
+  private deserializeProcesses(
+    value: unknown
+  ): Map<string, { startTime: string; command: string }> | null {
     if (!value || typeof value !== "object") {
       return null;
     }
@@ -2061,7 +2151,8 @@ ${skillMd}
         processes.set(pid, { startTime: entry, command: "Running process..." });
       } else if (typeof entry === "object" && entry !== null) {
         const obj = entry as { startTime?: unknown; command?: unknown };
-        const startTime = typeof obj.startTime === "string" ? obj.startTime : new Date().toISOString();
+        const startTime =
+          typeof obj.startTime === "string" ? obj.startTime : new Date().toISOString();
         const command = typeof obj.command === "string" ? obj.command : "Running process...";
         processes.set(pid, { startTime, command });
       }
@@ -2069,7 +2160,9 @@ ${skillMd}
     return processes.size > 0 ? processes : null;
   }
 
-  private serializeProcesses(processes: Map<string, { startTime: string; command: string }> | null): Record<string, { startTime: string; command: string }> | null {
+  private serializeProcesses(
+    processes: Map<string, { startTime: string; command: string }> | null
+  ): Record<string, { startTime: string; command: string }> | null {
     if (!processes || processes.size === 0) {
       return null;
     }

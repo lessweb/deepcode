@@ -30,6 +30,7 @@ type LLMClientContext = {
   machineId?: string;
 };
 
+// eslint-disable-next-line require-await
 export async function handleWebSearchTool(
   args: Record<string, unknown>,
   context: ToolExecutionContext
@@ -39,7 +40,7 @@ export async function handleWebSearchTool(
     return {
       ok: false,
       name: "WebSearch",
-      error: "Missing required \"query\" string."
+      error: 'Missing required "query" string.'
     };
   }
 
@@ -61,7 +62,9 @@ export async function handleWebSearchTool(
   return executeDefaultWebSearch(query, llmContext, context);
 }
 
-function hasUsableClient(value: ReturnType<CreateOpenAIClient> | undefined): value is LLMClientContext {
+function hasUsableClient(
+  value: ReturnType<CreateOpenAIClient> | undefined
+): value is LLMClientContext {
   return Boolean(value?.client);
 }
 
@@ -152,11 +155,17 @@ async function executeDefaultWebSearch(
   }
 }
 
-async function runWebSearchScript(
+function runWebSearchScript(
   scriptPath: string,
   query: string,
   context: ToolExecutionContext
-): Promise<{ stdout: string; stderr: string; exitCode: number | null; signal: string | null; error?: string }> {
+): Promise<{
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  signal: string | null;
+  error?: string;
+}> {
   return new Promise((resolve) => {
     const child = spawn(scriptPath, [query], {
       cwd: context.projectRoot,
@@ -198,7 +207,10 @@ async function runWebSearchScript(
   });
 }
 
-async function prepareSearchQuery(query: string, llmContext: LLMClientContext): Promise<SearchPreparation> {
+async function prepareSearchQuery(
+  query: string,
+  llmContext: LLMClientContext
+): Promise<SearchPreparation> {
   const decision = await decideSearchLanguage(query, llmContext);
   const containsChinese = containsChineseChar(query);
 
@@ -279,7 +291,9 @@ Query:
 ${query}
 \`\`\``;
 
-  return stripCodeFence(await chat(llmContext, prompt)).trim().replace(/^['"]|['"]$/g, "");
+  return stripCodeFence(await chat(llmContext, prompt))
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
 }
 
 async function chat(llmContext: LLMClientContext, prompt: string): Promise<string> {

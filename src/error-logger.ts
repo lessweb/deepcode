@@ -19,15 +19,9 @@ function maskSensitive(text: string): string {
   return (
     text
       // Mask Bearer tokens in Authorization headers
-      .replace(
-        /(Authorization:\s*Bearer\s+)[^\s\r\n]+/gi,
-        "$1***MASKED***"
-      )
+      .replace(/(Authorization:\s*Bearer\s+)[^\s\r\n]+/gi, "$1***MASKED***")
       // Mask "apiKey" or "api_key" values in JSON-like strings
-      .replace(
-        /((?:api[Kk]ey|api_key|secret)\s*[:=]\s*"?)[^",}\s]+/gi,
-        "$1***MASKED***"
-      )
+      .replace(/((?:api[Kk]ey|api_key|secret)\s*[:=]\s*"?)[^",}\s]+/gi, "$1***MASKED***")
   );
 }
 
@@ -50,9 +44,7 @@ function truncateContent(value: string): string {
  * is a string.  Every other field is kept exactly as-is so the logged request
  * mirrors the original API payload (no fields added or removed).
  */
-function sanitizeRequestPayload(
-  request: Record<string, unknown>
-): Record<string, unknown> {
+function sanitizeRequestPayload(request: Record<string, unknown>): Record<string, unknown> {
   function walk(value: unknown): unknown {
     if (!value || typeof value !== "object") {
       return value;
@@ -112,16 +104,14 @@ export function logApiError(entry: ApiErrorLogEntry): void {
       error: {
         name: entry.error.name,
         message: maskSensitive(entry.error.message),
-        stack: entry.error.stack ? maskSensitive(entry.error.stack) : undefined,
+        stack: entry.error.stack ? maskSensitive(entry.error.stack) : undefined
       },
-      request: sanitizeRequestPayload(entry.request),
+      request: sanitizeRequestPayload(entry.request)
     };
 
     if (entry.response !== undefined) {
       logLine.response =
-        typeof entry.response === "string"
-          ? maskSensitive(entry.response)
-          : entry.response;
+        typeof entry.response === "string" ? maskSensitive(entry.response) : entry.response;
     }
 
     const newLine = JSON.stringify(logLine) + "\n";
@@ -132,11 +122,7 @@ export function logApiError(entry: ApiErrorLogEntry): void {
     const raw = fs.readFileSync(ERROR_LOG_PATH, "utf8");
     const lines = raw.split("\n").filter((line) => line.trim().length > 0);
     if (lines.length > MAX_ENTRIES) {
-      fs.writeFileSync(
-        ERROR_LOG_PATH,
-        lines.slice(-MAX_ENTRIES).join("\n") + "\n",
-        "utf8"
-      );
+      fs.writeFileSync(ERROR_LOG_PATH, lines.slice(-MAX_ENTRIES).join("\n") + "\n", "utf8");
     }
   } catch {
     // Silently ignore logging failures to avoid disrupting the main flow

@@ -4,9 +4,9 @@ import * as path from "path";
 import * as os from "os";
 import OpenAI from "openai";
 import MarkdownIt from "markdown-it";
+import type { SessionMessage } from "./session";
 import {
   SessionManager,
-  SessionMessage,
   getCompactPromptTokenThreshold,
   type LlmStreamProgress,
   type SessionEntry,
@@ -47,7 +47,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         if (message.role !== "tool") {
-          const reasoningContent = (message.messageParams as any)?.reasoning_content;
+          const reasoningContent = (message.messageParams as { reasoning_content?: string } | null)
+            ?.reasoning_content;
           message.html = this.md.render(message.content || reasoningContent || "");
         }
         this.webviewView.webview.postMessage({ type: "appendMessage", message, shouldConnect });
@@ -98,7 +99,9 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       } else if (message?.type === "userPrompt") {
         const prompt = String(message.prompt || "").trim();
         const images = Array.isArray(message.images)
-          ? message.images.filter((image: unknown): image is string => typeof image === "string" && image.length > 0)
+          ? message.images.filter(
+              (image: unknown): image is string => typeof image === "string" && image.length > 0
+            )
           : [];
         if (!prompt && images.length === 0) {
           return;
@@ -129,7 +132,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     });
   }
 
-  private async loadInitialSession(): Promise<void> {
+  private loadInitialSession(): void {
     const sessions = this.sessionManager.listSessions();
     const sessionsList = sessions.map((s) => ({
       id: s.id,
@@ -190,9 +193,14 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         .map((m) => ({
           role: m.role,
           content: m.content,
-          html: m.role !== "tool" ? this.md.render(
-            m.content || (m.messageParams as any)?.reasoning_content || ""
-          ) : undefined,
+          html:
+            m.role !== "tool"
+              ? this.md.render(
+                  m.content ||
+                    (m.messageParams as { reasoning_content?: string } | null)?.reasoning_content ||
+                    ""
+                )
+              : undefined,
           meta: m.meta
         }))
     });
@@ -235,6 +243,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     await this.sendSkillsList();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private sendMessage(message: any): void {
     if (!this.webviewView) {
       return;
@@ -246,11 +255,17 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     if (!this.webviewView) {
       return;
     }
-    const skills = await this.sessionManager.listSkills(sessionId ?? this.sessionManager.getActiveSessionId() ?? undefined);
+    const skills = await this.sessionManager.listSkills(
+      sessionId ?? this.sessionManager.getActiveSessionId() ?? undefined
+    );
     this.sendMessage({ type: "skillsList", skills });
   }
 
-  private async handlePrompt(prompt: string, skills?: SkillInfo[], imageUrls?: string[]): Promise<void> {
+  private async handlePrompt(
+    prompt: string,
+    skills?: SkillInfo[],
+    imageUrls?: string[]
+  ): Promise<void> {
     if (!this.webviewView) {
       return;
     }
@@ -270,7 +285,9 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       await this.sendSkillsList();
 
       const activeSessionId = this.sessionManager.getActiveSessionId();
-      const activeSession = activeSessionId ? this.sessionManager.getSession(activeSessionId) : null;
+      const activeSession = activeSessionId
+        ? this.sessionManager.getSession(activeSessionId)
+        : null;
       if (activeSessionId && activeSession) {
         webview.postMessage({
           type: "sessionStatus",
@@ -318,7 +335,16 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
   } {
     const settings = this.resolveCurrentSettings();
 
-    const { apiKey, baseURL, model, thinkingEnabled, reasoningEffort, debugLogEnabled, notify, webSearchTool } = settings;
+    const {
+      apiKey,
+      baseURL,
+      model,
+      thinkingEnabled,
+      reasoningEffort,
+      debugLogEnabled,
+      notify,
+      webSearchTool
+    } = settings;
     const machineId = vscode.env.machineId;
 
     if (!apiKey) {
@@ -340,7 +366,17 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       baseURL: baseURL || undefined
     });
 
-    return { client, model, baseURL, thinkingEnabled, reasoningEffort, debugLogEnabled, notify, webSearchTool, machineId };
+    return {
+      client,
+      model,
+      baseURL,
+      thinkingEnabled,
+      reasoningEffort,
+      debugLogEnabled,
+      notify,
+      webSearchTool,
+      machineId
+    };
   }
 
   private buildTokenTelemetry(session: SessionEntry | null): {
@@ -412,17 +448,25 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     const csp = webview.cspSource;
 
     // 读取 HTML 模板文件
-    const htmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'webview.html');
-    let html = fs.readFileSync(htmlPath.fsPath, 'utf8');
+    const htmlPath = vscode.Uri.joinPath(this.context.extensionUri, "resources", "webview.html");
+    let html = fs.readFileSync(htmlPath.fsPath, "utf8");
 
     // 获取 CSS 文件 URI
-    const cssPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'webview.css');
+    const cssPath = vscode.Uri.joinPath(this.context.extensionUri, "resources", "webview.css");
     const cssUri = webview.asWebviewUri(cssPath);
-    const attachmentsJsPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'prompt-attachments.js');
+    const attachmentsJsPath = vscode.Uri.joinPath(
+      this.context.extensionUri,
+      "resources",
+      "prompt-attachments.js"
+    );
     const attachmentsJsUri = webview.asWebviewUri(attachmentsJsPath);
 
     // 获取 Logo 文件 URI
-    const iconPath = vscode.Uri.joinPath(this.context.extensionUri, 'resources', 'deepcoding_icon.png');
+    const iconPath = vscode.Uri.joinPath(
+      this.context.extensionUri,
+      "resources",
+      "deepcoding_icon.png"
+    );
     const iconUri = webview.asWebviewUri(iconPath);
 
     // 替换占位符

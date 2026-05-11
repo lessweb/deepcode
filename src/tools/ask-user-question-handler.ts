@@ -16,6 +16,7 @@ type AskUserQuestionMetadata = {
   questions: AskUserQuestionItem[];
 };
 
+// eslint-disable-next-line require-await
 export async function handleAskUserQuestionTool(
   args: Record<string, unknown>,
   _context: ToolExecutionContext
@@ -49,7 +50,7 @@ function parseQuestions(
   if (!Array.isArray(raw) || raw.length === 0) {
     return {
       ok: false,
-      error: "\"questions\" must be a non-empty array."
+      error: '"questions" must be a non-empty array.'
     };
   }
 
@@ -63,9 +64,10 @@ function parseQuestions(
       };
     }
 
-    const question = typeof (item as { question?: unknown }).question === "string"
-      ? (item as { question: string }).question.trim()
-      : "";
+    const question =
+      typeof (item as { question?: unknown }).question === "string"
+        ? (item as { question: string }).question.trim()
+        : "";
     if (!question) {
       return {
         ok: false,
@@ -91,9 +93,10 @@ function parseQuestions(
         };
       }
 
-      const label = typeof (option as { label?: unknown }).label === "string"
-        ? (option as { label: string }).label.trim()
-        : "";
+      const label =
+        typeof (option as { label?: unknown }).label === "string"
+          ? (option as { label: string }).label.trim()
+          : "";
       if (!label) {
         return {
           ok: false,
@@ -101,9 +104,10 @@ function parseQuestions(
         };
       }
 
-      const description = typeof (option as { description?: unknown }).description === "string"
-        ? (option as { description: string }).description.trim()
-        : undefined;
+      const description =
+        typeof (option as { description?: unknown }).description === "string"
+          ? (option as { description: string }).description.trim()
+          : undefined;
 
       options.push({
         label,
@@ -111,9 +115,10 @@ function parseQuestions(
       });
     }
 
-    const multiSelect = typeof (item as { multiSelect?: unknown }).multiSelect === "boolean"
-      ? (item as { multiSelect: boolean }).multiSelect
-      : undefined;
+    const multiSelect =
+      typeof (item as { multiSelect?: unknown }).multiSelect === "boolean"
+        ? (item as { multiSelect: boolean }).multiSelect
+        : undefined;
 
     questions.push({
       question,

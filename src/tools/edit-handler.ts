@@ -80,7 +80,7 @@ const editSchema = z.strictObject({
   }, z.number().int().min(1, "expected_occurrences must be >= 1.").optional())
 });
 
-export async function handleEditTool(
+export function handleEditTool(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
@@ -98,7 +98,7 @@ export async function handleEditTool(
         return {
           ok: false,
           name: "edit",
-          error: "Missing required \"file_path\" string or \"snippet_id\" string."
+          error: 'Missing required "file_path" string or "snippet_id" string.'
         };
       }
 
@@ -188,7 +188,8 @@ export async function handleEditTool(
         return {
           ok: false,
           name: "edit",
-          error: "File was only partially read. Use snippet_id or read the full file before editing."
+          error:
+            "File was only partially read. Use snippet_id or read the full file before editing."
         };
       }
 
@@ -266,7 +267,8 @@ export async function handleEditTool(
           return {
             ok: false,
             name: "edit",
-            error: "old_string is not unique; use snippet_id, replace_all, or provide more context.",
+            error:
+              "old_string is not unique; use snippet_id, replace_all, or provide more context.",
             metadata: {
               match_count: matches.length,
               scope: formatScopeMetadata(scope),
@@ -435,7 +437,11 @@ function findOccurrences(raw: string, needle: string, scope: SearchScope): Match
   return matches;
 }
 
-function findLooseEscapeMatches(raw: string, needle: string, scope: SearchScope): LooseEscapeMatch[] {
+function findLooseEscapeMatches(
+  raw: string,
+  needle: string,
+  scope: SearchScope
+): LooseEscapeMatch[] {
   if (!raw || !needle) {
     return [];
   }
@@ -562,10 +568,7 @@ function buildClosestMatchMetadata(
   filePath: string,
   closestMatch: ClosestMatch
 ): Record<string, unknown> {
-  const preview = formatWithLineNumbers(
-    closestMatch.text.split(/\r?\n/),
-    closestMatch.startLine
-  );
+  const preview = formatWithLineNumbers(closestMatch.text.split(/\r?\n/), closestMatch.startLine);
   const snippet = createSnippet(
     sessionId,
     filePath,
@@ -633,7 +636,9 @@ function findClosestMatch(
   }
 
   const targetLineCount = Math.max(1, oldString.split(/\r?\n/).length);
-  const windowSizes = Array.from(new Set([Math.max(1, targetLineCount - 1), targetLineCount, targetLineCount + 1]));
+  const windowSizes = Array.from(
+    new Set([Math.max(1, targetLineCount - 1), targetLineCount, targetLineCount + 1])
+  );
   const normalizedTarget = normalizeLooseText(oldString);
 
   let bestMatch: ClosestMatch | null = null;
@@ -786,10 +791,7 @@ function parseCorrectedEditStrings(content: string): CorrectedEditStrings | null
 
   const correctedOldString = oldMatch?.[1] ?? oldMatch?.[2];
   const correctedNewString = newMatch?.[1] ?? newMatch?.[2];
-  if (
-    typeof correctedOldString === "string" &&
-    typeof correctedNewString === "string"
-  ) {
+  if (typeof correctedOldString === "string" && typeof correctedNewString === "string") {
     return {
       oldString: correctedOldString,
       newString: correctedNewString
@@ -800,7 +802,7 @@ function parseCorrectedEditStrings(content: string): CorrectedEditStrings | null
 }
 
 function isEscapeSensitiveChar(value: string): boolean {
-  return value === "\"" || value === "'" || value === "`" || value === "\\";
+  return value === '"' || value === "'" || value === "`" || value === "\\";
 }
 
 function escapeRegExp(value: string): string {

@@ -26,14 +26,12 @@ const writeSchema = z.strictObject({
   })
 });
 
-type WriteInput = z.infer<typeof writeSchema>;
-
 type WriteRepairMetadata = {
   input_repaired: boolean;
   repair_kind: "json-stringify-content";
 } | null;
 
-export async function handleWriteTool(
+export function handleWriteTool(
   args: Record<string, unknown>,
   context: ToolExecutionContext
 ): Promise<ToolExecutionResult> {
@@ -44,6 +42,7 @@ export async function handleWriteTool(
     writeSchema,
     args,
     context,
+    // eslint-disable-next-line require-await
     async (input) => {
       const filePath = normalizeFilePath(input.file_path);
       if (!isAbsoluteFilePath(filePath)) {
@@ -104,8 +103,7 @@ export async function handleWriteTool(
         const existingMetadata = existingFile ? readTextFileWithMetadata(filePath) : null;
         const encoding = existingMetadata?.encoding ?? "utf8";
         const lineEndings =
-          existingMetadata?.lineEndings ??
-          (input.content.includes("\r\n") ? "CRLF" : "LF");
+          existingMetadata?.lineEndings ?? (input.content.includes("\r\n") ? "CRLF" : "LF");
         const diffPreview = buildDiffPreview(
           filePath,
           existingMetadata?.content ?? null,
@@ -175,9 +173,8 @@ export async function handleWriteTool(
         repairMetadata = null;
         return {
           ok: true,
-          input: typeof rawInput.file_path === "string"
-            ? { ...rawInput, file_path: filePath }
-            : rawInput
+          input:
+            typeof rawInput.file_path === "string" ? { ...rawInput, file_path: filePath } : rawInput
         };
       }
     }

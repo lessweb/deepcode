@@ -283,8 +283,9 @@ test("SessionManager marks skills loaded from existing session messages", async 
   );
 
   const manager = createSessionManager(workspace, "machine-id-loaded-skills");
-  const loadedSkill = (await manager.listSkills("loaded-session"))
-    .find((skill) => skill.name === "lessweb-starter");
+  const loadedSkill = (await manager.listSkills("loaded-session")).find(
+    (skill) => skill.name === "lessweb-starter"
+  );
 
   assert.equal(loadedSkill?.isLoaded, true);
 });
@@ -335,16 +336,19 @@ test("createSession reports a new prompt with the machineId token", async () => 
   process.env.HOME = home;
 
   const fetchCalls: Array<{ input: string | URL; init?: RequestInit }> = [];
+  // eslint-disable-next-line require-await
   globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
     fetchCalls.push({ input, init });
     return {
       ok: true,
+      // eslint-disable-next-line require-await
       text: async () => ""
     } as Response;
   }) as typeof fetch;
 
   const manager = createSessionManager(workspace, "machine-id-123");
   const activatedSessionIds: string[] = [];
+  // eslint-disable-next-line require-await
   (manager as any).activateSession = async (sessionId: string) => {
     activatedSessionIds.push(sessionId);
   };
@@ -367,10 +371,12 @@ test("replySession reports a new prompt with the machineId token", async () => {
   process.env.HOME = home;
 
   const fetchCalls: Array<{ input: string | URL; init?: RequestInit }> = [];
+  // eslint-disable-next-line require-await
   globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
     fetchCalls.push({ input, init });
     return {
       ok: true,
+      // eslint-disable-next-line require-await
       text: async () => ""
     } as Response;
   }) as typeof fetch;
@@ -397,10 +403,13 @@ test("replySession preserves raw session messages when a previous tool call is p
   const home = createTempDir("deepcode-pending-tool-home-");
   process.env.HOME = home;
 
-  globalThis.fetch = (async () => ({
-    ok: true,
-    text: async () => ""
-  }) as Response) as typeof fetch;
+  // eslint-disable-next-line require-await
+  globalThis.fetch = (async () =>
+    ({
+      ok: true,
+      // eslint-disable-next-line require-await
+      text: async () => ""
+    }) as Response) as typeof fetch;
 
   const manager = createSessionManager(workspace, "machine-id-pending-tool");
   (manager as any).activateSession = async () => {};
@@ -413,7 +422,7 @@ test("replySession preserves raw session messages when a previous tool call is p
       {
         id: "call-1",
         type: "function",
-        function: { name: "bash", arguments: "{\"command\":\"sleep 100\"}" }
+        function: { name: "bash", arguments: '{"command":"sleep 100"}' }
       }
     ],
     ""
@@ -427,7 +436,12 @@ test("replySession preserves raw session messages when a previous tool call is p
   assert.notEqual(assistantIndex, -1);
   assert.equal(messages[assistantIndex + 1]?.role, "user");
   assert.equal(messages[assistantIndex + 1]?.content, "second prompt");
-  assert.equal(messages.some((message) => String(message.content).includes("Previous tool call did not complete.")), false);
+  assert.equal(
+    messages.some((message) =>
+      String(message.content).includes("Previous tool call did not complete.")
+    ),
+    false
+  );
 });
 
 test("buildOpenAIMessages inserts interrupted results for missing tool messages", () => {
@@ -439,14 +453,17 @@ test("buildOpenAIMessages inserts interrupted results for missing tool messages"
       {
         id: "call-1",
         type: "function",
-        function: { name: "bash", arguments: "{\"command\":\"sleep 100\"}" }
+        function: { name: "bash", arguments: '{"command":"sleep 100"}' }
       }
     ],
     ""
   ) as SessionMessage;
   const userMessage = buildTestMessage("user-after-tool-call", "session-1", "user", "continue");
 
-  const openAIMessages = (manager as any).buildOpenAIMessages([assistantMessage, userMessage], false) as Array<{
+  const openAIMessages = (manager as any).buildOpenAIMessages(
+    [assistantMessage, userMessage],
+    false
+  ) as Array<{
     role: string;
     content: string;
     tool_call_id?: string;
@@ -469,7 +486,7 @@ test("buildOpenAIMessages keeps only the first non-interrupted tool result for a
       {
         id: "call-1",
         type: "function",
-        function: { name: "bash", arguments: "{\"command\":\"date\"}" }
+        function: { name: "bash", arguments: '{"command":"date"}' }
       }
     ],
     ""
@@ -478,7 +495,7 @@ test("buildOpenAIMessages keeps only the first non-interrupted tool result for a
     "session-1",
     "call-1",
     JSON.stringify({ ok: true, name: "bash", output: "2026-05-07 星期四\n" }),
-    { name: "bash", arguments: "{\"command\":\"date\"}" }
+    { name: "bash", arguments: '{"command":"date"}' }
   ) as SessionMessage;
   const interruptedToolMessage = (manager as any).buildToolMessage(
     "session-1",
@@ -489,7 +506,7 @@ test("buildOpenAIMessages keeps only the first non-interrupted tool result for a
       error: "Previous tool call did not complete.",
       metadata: { interrupted: true }
     }),
-    { name: "bash", arguments: "{\"command\":\"date\"}" }
+    { name: "bash", arguments: '{"command":"date"}' }
   ) as SessionMessage;
 
   const openAIMessages = (manager as any).buildOpenAIMessages(
@@ -513,7 +530,7 @@ test("buildOpenAIMessages prefers a later real tool result over an earlier inter
       {
         id: "call-1",
         type: "function",
-        function: { name: "bash", arguments: "{\"command\":\"date\"}" }
+        function: { name: "bash", arguments: '{"command":"date"}' }
       }
     ],
     ""
@@ -527,13 +544,13 @@ test("buildOpenAIMessages prefers a later real tool result over an earlier inter
       error: "Previous tool call did not complete.",
       metadata: { interrupted: true }
     }),
-    { name: "bash", arguments: "{\"command\":\"date\"}" }
+    { name: "bash", arguments: '{"command":"date"}' }
   ) as SessionMessage;
   const successToolMessage = (manager as any).buildToolMessage(
     "session-1",
     "call-1",
     JSON.stringify({ ok: true, name: "bash", output: "real result" }),
-    { name: "bash", arguments: "{\"command\":\"date\"}" }
+    { name: "bash", arguments: '{"command":"date"}' }
   ) as SessionMessage;
 
   const openAIMessages = (manager as any).buildOpenAIMessages(
@@ -554,7 +571,7 @@ test("buildOpenAIMessages ignores orphan tool messages", () => {
     "session-1",
     "call-orphan",
     JSON.stringify({ ok: true, name: "bash", output: "orphan" }),
-    { name: "bash", arguments: "{\"command\":\"echo orphan\"}" }
+    { name: "bash", arguments: '{"command":"echo orphan"}' }
   ) as SessionMessage;
 
   const openAIMessages = (manager as any).buildOpenAIMessages(
@@ -562,7 +579,10 @@ test("buildOpenAIMessages ignores orphan tool messages", () => {
     false
   ) as Array<{ role: string }>;
 
-  assert.deepEqual(openAIMessages.map((message) => message.role), ["user"]);
+  assert.deepEqual(
+    openAIMessages.map((message) => message.role),
+    ["user"]
+  );
 });
 
 test("buildOpenAIMessages moves a later paired tool message behind its assistant", () => {
@@ -574,7 +594,7 @@ test("buildOpenAIMessages moves a later paired tool message behind its assistant
       {
         id: "call-1",
         type: "function",
-        function: { name: "bash", arguments: "{\"command\":\"date\"}" }
+        function: { name: "bash", arguments: '{"command":"date"}' }
       }
     ],
     ""
@@ -584,7 +604,7 @@ test("buildOpenAIMessages moves a later paired tool message behind its assistant
     "session-1",
     "call-1",
     JSON.stringify({ ok: true, name: "bash", output: "paired later" }),
-    { name: "bash", arguments: "{\"command\":\"date\"}" }
+    { name: "bash", arguments: '{"command":"date"}' }
   ) as SessionMessage;
 
   const openAIMessages = (manager as any).buildOpenAIMessages(
@@ -592,7 +612,10 @@ test("buildOpenAIMessages moves a later paired tool message behind its assistant
     false
   ) as Array<{ role: string; content: string }>;
 
-  assert.deepEqual(openAIMessages.map((message) => message.role), ["assistant", "tool", "user"]);
+  assert.deepEqual(
+    openAIMessages.map((message) => message.role),
+    ["assistant", "tool", "user"]
+  );
   assert.match(openAIMessages[1]?.content ?? "", /paired later/);
 });
 
@@ -605,12 +628,12 @@ test("buildOpenAIMessages preserves a complete multi-tool happy path", () => {
       {
         id: "call-1",
         type: "function",
-        function: { name: "read", arguments: "{\"file_path\":\"/tmp/a.txt\"}" }
+        function: { name: "read", arguments: '{"file_path":"/tmp/a.txt"}' }
       },
       {
         id: "call-2",
         type: "function",
-        function: { name: "bash", arguments: "{\"command\":\"pwd\"}" }
+        function: { name: "bash", arguments: '{"command":"pwd"}' }
       }
     ],
     ""
@@ -619,13 +642,13 @@ test("buildOpenAIMessages preserves a complete multi-tool happy path", () => {
     "session-1",
     "call-1",
     JSON.stringify({ ok: true, name: "read", content: "file content" }),
-    { name: "read", arguments: "{\"file_path\":\"/tmp/a.txt\"}" }
+    { name: "read", arguments: '{"file_path":"/tmp/a.txt"}' }
   ) as SessionMessage;
   const secondToolMessage = (manager as any).buildToolMessage(
     "session-1",
     "call-2",
     JSON.stringify({ ok: true, name: "bash", output: "/tmp\n" }),
-    { name: "bash", arguments: "{\"command\":\"pwd\"}" }
+    { name: "bash", arguments: '{"command":"pwd"}' }
   ) as SessionMessage;
   const userMessage = buildTestMessage("user-after-complete-tools", "session-1", "user", "thanks");
 
@@ -634,12 +657,22 @@ test("buildOpenAIMessages preserves a complete multi-tool happy path", () => {
     false
   ) as Array<{ role: string; content: string; tool_call_id?: string }>;
 
-  assert.deepEqual(openAIMessages.map((message) => message.role), ["assistant", "tool", "tool", "user"]);
   assert.deepEqual(
-    openAIMessages.filter((message) => message.role === "tool").map((message) => message.tool_call_id),
+    openAIMessages.map((message) => message.role),
+    ["assistant", "tool", "tool", "user"]
+  );
+  assert.deepEqual(
+    openAIMessages
+      .filter((message) => message.role === "tool")
+      .map((message) => message.tool_call_id),
     ["call-1", "call-2"]
   );
-  assert.equal(openAIMessages.some((message) => message.content.includes("Previous tool call did not complete.")), false);
+  assert.equal(
+    openAIMessages.some((message) =>
+      message.content.includes("Previous tool call did not complete.")
+    ),
+    false
+  );
 });
 
 test("buildOpenAIMessages preserves a real failed tool result", () => {
@@ -651,7 +684,7 @@ test("buildOpenAIMessages preserves a real failed tool result", () => {
       {
         id: "call-1",
         type: "function",
-        function: { name: "bash", arguments: "{\"command\":\"false\"}" }
+        function: { name: "bash", arguments: '{"command":"false"}' }
       }
     ],
     ""
@@ -660,7 +693,7 @@ test("buildOpenAIMessages preserves a real failed tool result", () => {
     "session-1",
     "call-1",
     JSON.stringify({ ok: false, name: "bash", error: "Command failed", metadata: { exitCode: 1 } }),
-    { name: "bash", arguments: "{\"command\":\"false\"}" }
+    { name: "bash", arguments: '{"command":"false"}' }
   ) as SessionMessage;
 
   const openAIMessages = (manager as any).buildOpenAIMessages(
@@ -668,7 +701,10 @@ test("buildOpenAIMessages preserves a real failed tool result", () => {
     false
   ) as Array<{ role: string; content: string; tool_call_id?: string }>;
 
-  assert.deepEqual(openAIMessages.map((message) => message.role), ["assistant", "tool"]);
+  assert.deepEqual(
+    openAIMessages.map((message) => message.role),
+    ["assistant", "tool"]
+  );
   assert.equal(openAIMessages[1]?.tool_call_id, "call-1");
   assert.match(openAIMessages[1]?.content ?? "", /Command failed/);
   assert.doesNotMatch(openAIMessages[1]?.content ?? "", /Previous tool call did not complete/);
@@ -683,12 +719,12 @@ test("buildOpenAIMessages repairs mixed missing duplicate and orphan tool messag
       {
         id: "call-1",
         type: "function",
-        function: { name: "read", arguments: "{\"file_path\":\"/tmp/missing.txt\"}" }
+        function: { name: "read", arguments: '{"file_path":"/tmp/missing.txt"}' }
       },
       {
         id: "call-2",
         type: "function",
-        function: { name: "bash", arguments: "{\"command\":\"pwd\"}" }
+        function: { name: "bash", arguments: '{"command":"pwd"}' }
       }
     ],
     ""
@@ -697,19 +733,19 @@ test("buildOpenAIMessages repairs mixed missing duplicate and orphan tool messag
     "session-1",
     "call-orphan",
     JSON.stringify({ ok: true, name: "bash", output: "orphan" }),
-    { name: "bash", arguments: "{\"command\":\"echo orphan\"}" }
+    { name: "bash", arguments: '{"command":"echo orphan"}' }
   ) as SessionMessage;
   const pairedToolMessage = (manager as any).buildToolMessage(
     "session-1",
     "call-2",
     JSON.stringify({ ok: true, name: "bash", output: "/tmp\n" }),
-    { name: "bash", arguments: "{\"command\":\"pwd\"}" }
+    { name: "bash", arguments: '{"command":"pwd"}' }
   ) as SessionMessage;
   const duplicateToolMessage = (manager as any).buildToolMessage(
     "session-1",
     "call-2",
     JSON.stringify({ ok: true, name: "bash", output: "duplicate" }),
-    { name: "bash", arguments: "{\"command\":\"pwd\"}" }
+    { name: "bash", arguments: '{"command":"pwd"}' }
   ) as SessionMessage;
   const userMessage = buildTestMessage("user-after-mixed-tools", "session-1", "user", "continue");
 
@@ -719,12 +755,24 @@ test("buildOpenAIMessages repairs mixed missing duplicate and orphan tool messag
   ) as Array<{ role: string; content: string; tool_call_id?: string }>;
   const toolMessages = openAIMessages.filter((message) => message.role === "tool");
 
-  assert.deepEqual(openAIMessages.map((message) => message.role), ["assistant", "tool", "tool", "user"]);
-  assert.deepEqual(toolMessages.map((message) => message.tool_call_id), ["call-1", "call-2"]);
+  assert.deepEqual(
+    openAIMessages.map((message) => message.role),
+    ["assistant", "tool", "tool", "user"]
+  );
+  assert.deepEqual(
+    toolMessages.map((message) => message.tool_call_id),
+    ["call-1", "call-2"]
+  );
   assert.match(toolMessages[0]?.content ?? "", /Previous tool call did not complete/);
   assert.match(toolMessages[1]?.content ?? "", /\/tmp/);
-  assert.equal(openAIMessages.some((message) => message.content.includes("orphan")), false);
-  assert.equal(openAIMessages.some((message) => message.content.includes("duplicate")), false);
+  assert.equal(
+    openAIMessages.some((message) => message.content.includes("orphan")),
+    false
+  );
+  assert.equal(
+    openAIMessages.some((message) => message.content.includes("duplicate")),
+    false
+  );
 });
 
 test("buildOpenAIMessages ignores tool messages that appear before their assistant", () => {
@@ -733,7 +781,7 @@ test("buildOpenAIMessages ignores tool messages that appear before their assista
     "session-1",
     "call-1",
     JSON.stringify({ ok: true, name: "bash", output: "too early" }),
-    { name: "bash", arguments: "{\"command\":\"date\"}" }
+    { name: "bash", arguments: '{"command":"date"}' }
   ) as SessionMessage;
   const assistantMessage = (manager as any).buildAssistantMessage(
     "session-1",
@@ -742,7 +790,7 @@ test("buildOpenAIMessages ignores tool messages that appear before their assista
       {
         id: "call-1",
         type: "function",
-        function: { name: "bash", arguments: "{\"command\":\"date\"}" }
+        function: { name: "bash", arguments: '{"command":"date"}' }
       }
     ],
     ""
@@ -753,7 +801,10 @@ test("buildOpenAIMessages ignores tool messages that appear before their assista
     false
   ) as Array<{ role: string; content: string; tool_call_id?: string }>;
 
-  assert.deepEqual(openAIMessages.map((message) => message.role), ["assistant", "tool"]);
+  assert.deepEqual(
+    openAIMessages.map((message) => message.role),
+    ["assistant", "tool"]
+  );
   assert.equal(openAIMessages[1]?.tool_call_id, "call-1");
   assert.match(openAIMessages[1]?.content ?? "", /Previous tool call did not complete/);
   assert.doesNotMatch(openAIMessages[1]?.content ?? "", /too early/);
@@ -851,6 +902,7 @@ test("SessionManager streams chat completions and counts reasoning progress", as
   const client = {
     chat: {
       completions: {
+        // eslint-disable-next-line require-await
         create: async (request: Record<string, unknown>) => {
           assert.equal(request.stream, true);
           assert.deepEqual(request.stream_options, { include_usage: true });
@@ -920,14 +972,18 @@ test("SessionManager cancels skill matching before a session is created", async 
     "utf8"
   );
 
+  // eslint-disable-next-line prefer-const
   let manager: SessionManager;
   const client = {
     chat: {
       completions: {
+        // eslint-disable-next-line require-await
         create: async (_request: Record<string, unknown>, options?: { signal?: AbortSignal }) => {
           return new Promise((_resolve, reject) => {
             const signal = options?.signal;
-            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
+            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), {
+              once: true
+            });
             queueMicrotask(() => manager.interruptActiveSession());
           });
         }
@@ -947,21 +1003,23 @@ test("SessionManager treats OpenAI APIUserAbortError as interrupted", async () =
   const home = createTempDir("deepcode-api-abort-home-");
   process.env.HOME = home;
 
-  let manager: SessionManager;
   const client = {
     chat: {
       completions: {
+        // eslint-disable-next-line require-await
         create: async (_request: Record<string, unknown>, options?: { signal?: AbortSignal }) => {
           return new Promise((_resolve, reject) => {
             const signal = options?.signal;
-            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), { once: true });
+            signal?.addEventListener("abort", () => reject(new APIUserAbortError()), {
+              once: true
+            });
           });
         }
       }
     }
   };
 
-  manager = new SessionManager({
+  const manager = new SessionManager({
     projectRoot: workspace,
     createOpenAIClient: () => ({
       client: client as any,
@@ -1004,10 +1062,14 @@ function createSessionManager(projectRoot: string, machineId: string): SessionMa
   });
 }
 
-function createMockedClientSessionManager(projectRoot: string, responses: unknown[]): SessionManager {
+function createMockedClientSessionManager(
+  projectRoot: string,
+  responses: unknown[]
+): SessionManager {
   const client = {
     chat: {
       completions: {
+        // eslint-disable-next-line require-await
         create: async () => {
           const response = responses.shift();
           assert.ok(response, "expected a queued chat response");
@@ -1031,7 +1093,10 @@ function createMockedClientSessionManager(projectRoot: string, responses: unknow
   });
 }
 
-function createMockedClientSessionManagerWithClient(projectRoot: string, client: unknown): SessionManager {
+function createMockedClientSessionManagerWithClient(
+  projectRoot: string,
+  client: unknown
+): SessionManager {
   return new SessionManager({
     projectRoot,
     createOpenAIClient: () => ({
@@ -1075,7 +1140,9 @@ function buildTestMessage(
   };
 }
 
-async function* createChatStreamResponse(chunks: Record<string, unknown>[]): AsyncGenerator<Record<string, unknown>> {
+async function* createChatStreamResponse(
+  chunks: Record<string, unknown>[]
+): AsyncGenerator<Record<string, unknown>> {
   for (const chunk of chunks) {
     yield chunk;
   }

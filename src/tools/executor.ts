@@ -245,5 +245,4 @@ export class ToolExecutor {
 
     return JSON.stringify(payload, null, 2);
   }
-
 }

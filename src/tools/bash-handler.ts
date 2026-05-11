@@ -33,7 +33,7 @@ export async function handleBashTool(
     return {
       ok: false,
       name: "bash",
-      error: "Missing required \"command\" string."
+      error: 'Missing required "command" string.'
     };
   }
 
@@ -54,11 +54,7 @@ export async function handleBashTool(
 
   if (execution.error || result.exitCode !== 0 || result.signal !== null) {
     const errorMessage = buildErrorMessage(result.exitCode, result.signal, execution.error);
-    return formatResult(
-      { ...result, ok: false },
-      "bash",
-      errorMessage
-    );
+    return formatResult({ ...result, ok: false }, "bash", errorMessage);
   }
 
   return formatResult(result, "bash");
@@ -100,13 +96,19 @@ function buildShellCommand(command: string): {
   return { shellPath, shellArgs: ["-c", wrappedCommand], marker };
 }
 
-async function executeShellCommand(
+function executeShellCommand(
   shellPath: string,
   shellArgs: string[],
   cwd: string,
   command: string,
   context: ToolExecutionContext
-): Promise<{ stdout: string; stderr: string; exitCode: number | null; signal: string | null; error?: string }> {
+): Promise<{
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+  signal: string | null;
+  error?: string;
+}> {
   return new Promise((resolve) => {
     const detached = process.platform !== "win32";
     const child = spawn(shellPath, shellArgs, {

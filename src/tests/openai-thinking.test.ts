@@ -9,40 +9,28 @@ test("buildThinkingRequestOptions explicitly disables thinking", () => {
 });
 
 test("buildThinkingRequestOptions uses the same disabled payload for volces endpoints", () => {
-  assert.deepEqual(
-    buildThinkingRequestOptions(false, "https://ark.cn-beijing.volces.com/api/v3"),
-    {
-      thinking: { type: "disabled" }
-    }
-  );
+  assert.deepEqual(buildThinkingRequestOptions(false, "https://ark.cn-beijing.volces.com/api/v3"), {
+    thinking: { type: "disabled" }
+  });
 });
 
 test("buildThinkingRequestOptions enables thinking with default reasoning effort", () => {
-  assert.deepEqual(
-    buildThinkingRequestOptions(true, "https://api.deepseek.com"),
-    {
-      thinking: { type: "enabled" },
-      extra_body: { reasoning_effort: "max" }
-    }
-  );
+  assert.deepEqual(buildThinkingRequestOptions(true, "https://api.deepseek.com"), {
+    thinking: { type: "enabled" },
+    extra_body: { reasoning_effort: "max" }
+  });
 });
 
 test("buildThinkingRequestOptions uses the same enabled payload for volces endpoints", () => {
-  assert.deepEqual(
-    buildThinkingRequestOptions(true, "https://ark.cn-beijing.volces.com/api/v3"),
-    {
-      thinking: { type: "enabled" },
-      extra_body: { reasoning_effort: "max" }
-    }
-  );
+  assert.deepEqual(buildThinkingRequestOptions(true, "https://ark.cn-beijing.volces.com/api/v3"), {
+    thinking: { type: "enabled" },
+    extra_body: { reasoning_effort: "max" }
+  });
 });
 
 test("buildThinkingRequestOptions accepts high reasoning effort", () => {
-  assert.deepEqual(
-    buildThinkingRequestOptions(true, "https://api.deepseek.com", "high"),
-    {
-      thinking: { type: "enabled" },
-      extra_body: { reasoning_effort: "high" }
-    }
-  );
+  assert.deepEqual(buildThinkingRequestOptions(true, "https://api.deepseek.com", "high"), {
+    thinking: { type: "enabled" },
+    extra_body: { reasoning_effort: "high" }
+  });
 });

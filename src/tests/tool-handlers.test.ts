@@ -35,9 +35,11 @@ test("Read returns snippet metadata and Edit can scope replacements by snippet_i
   );
 
   assert.equal(readResult.ok, true);
-  const snippet = (readResult.metadata?.snippet ?? null) as
-    | { id: string; startLine: number; endLine: number }
-    | null;
+  const snippet = (readResult.metadata?.snippet ?? null) as {
+    id: string;
+    startLine: number;
+    endLine: number;
+  } | null;
   assert.ok(snippet);
   assert.equal(snippet?.startLine, 4);
   assert.equal(snippet?.endLine, 5);
@@ -163,6 +165,7 @@ test("Edit accepts a unique loose-escape match when only escaping differs", asyn
         client: {
           chat: {
             completions: {
+              // eslint-disable-next-line require-await
               create: async () => ({
                 choices: [
                   {
@@ -212,10 +215,7 @@ test("Write repairs JSON object content for .json files", async () => {
   assert.equal(writeResult.metadata?.line_endings, "LF");
   assert.equal(writeResult.metadata?.input_repaired, true);
   assert.match(String(writeResult.metadata?.diff_preview ?? ""), /\+\s*"name": "demo"|^\+\{/m);
-  assert.equal(
-    fs.readFileSync(filePath, "utf8"),
-    '{\n  "name": "demo",\n  "private": true\n}'
-  );
+  assert.equal(fs.readFileSync(filePath, "utf8"), '{\n  "name": "demo",\n  "private": true\n}');
 });
 
 test("Write updates file state so a follow-up Edit can succeed without another Read", async () => {
@@ -256,7 +256,10 @@ test("Write requires a full read before overwriting an existing file", async () 
   fs.writeFileSync(filePath, "line1\nline2\nline3\n", "utf8");
 
   const sessionId = "write-full-read";
-  await handleReadTool({ file_path: filePath, offset: 2, limit: 1 }, createContext(sessionId, workspace));
+  await handleReadTool(
+    { file_path: filePath, offset: 2, limit: 1 },
+    createContext(sessionId, workspace)
+  );
 
   const blockedResult = await handleWriteTool(
     {
@@ -312,7 +315,10 @@ test("Edit rejects stale reads after the file changes on disk", async () => {
   );
 
   assert.equal(editResult.ok, false);
-  assert.equal(editResult.error, "File has been modified since read. Read it again before editing.");
+  assert.equal(
+    editResult.error,
+    "File has been modified since read. Read it again before editing."
+  );
 });
 
 test("Write preserves the exact trailing newline policy from the provided content", async () => {
@@ -385,9 +391,7 @@ test("Read returns an acknowledgement for images and attaches the image as a fol
   assert.equal(contentParams.length, 1);
   assert.equal((contentParams[0] as { type?: unknown }).type, "image_url");
   assert.match(
-    String(
-      ((contentParams[0] as { image_url?: { url?: unknown } }).image_url?.url ?? "")
-    ),
+    String((contentParams[0] as { image_url?: { url?: unknown } }).image_url?.url ?? ""),
     /^data:image\/png;base64,/
   );
 });
