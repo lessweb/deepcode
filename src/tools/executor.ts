@@ -66,6 +66,13 @@ export type ToolHandler = (
   context: ToolExecutionContext
 ) => Promise<ToolExecutionResult>;
 
+const BUILT_IN_TOOL_NAME_ALIASES = new Map<string, string>([
+  ["Bash", "bash"],
+  ["Read", "read"],
+  ["Write", "write"],
+  ["Edit", "edit"]
+]);
+
 export type ToolCallExecution = {
   toolCallId: string;
   content: string;
@@ -168,7 +175,8 @@ export class ToolExecutor {
     hooks?: ToolExecutionHooks
   ): Promise<ToolExecutionResult> {
     const toolName = toolCall.function.name;
-    const handler = this.toolHandlers.get(toolName);
+    const handlerName = BUILT_IN_TOOL_NAME_ALIASES.get(toolName) ?? toolName;
+    const handler = this.toolHandlers.get(handlerName);
     if (!handler) {
       // Try MCP tools
       if (this.mcpManager?.isMcpTool(toolName)) {
