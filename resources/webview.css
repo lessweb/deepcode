@@ -462,6 +462,101 @@ body {
   line-height: 1.5;
 }
 
+.update-plan-result {
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-editor-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+  line-height: 1.45;
+  padding: 10px;
+  white-space: normal;
+}
+
+.update-plan-heading {
+  color: var(--vscode-foreground);
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.35;
+  margin: 0 0 8px;
+}
+
+.update-plan-heading:not(:first-child) {
+  margin-top: 12px;
+}
+
+.update-plan-spacer {
+  height: 6px;
+}
+
+.update-plan-paragraph {
+  margin: 4px 0;
+}
+
+.update-plan-task,
+.update-plan-bullet {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  align-items: flex-start;
+  margin: 5px 0;
+  padding-left: calc(var(--plan-indent, 0) * 18px);
+}
+
+.update-plan-status {
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  border: 1px solid var(--vscode-descriptionForeground);
+  border-radius: 50%;
+  color: var(--vscode-editor-background);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.update-plan-task.status-done .update-plan-status {
+  background: var(--vscode-testing-iconPassed, #2ea043);
+  border-color: var(--vscode-testing-iconPassed, #2ea043);
+}
+
+.update-plan-task.status-active .update-plan-status {
+  background: var(--vscode-charts-blue, #3794ff);
+  border-color: var(--vscode-charts-blue, #3794ff);
+}
+
+.update-plan-task.status-attention .update-plan-status {
+  background: var(--vscode-testing-iconFailed, #f85149);
+  border-color: var(--vscode-testing-iconFailed, #f85149);
+}
+
+.update-plan-task.status-todo .update-plan-status {
+  background: transparent;
+}
+
+.update-plan-task.status-done .update-plan-task-text {
+  color: var(--vscode-descriptionForeground);
+  text-decoration: line-through;
+}
+
+.update-plan-bullet-marker {
+  color: var(--vscode-descriptionForeground);
+  line-height: 1.45;
+  text-align: center;
+}
+
+.update-plan-markdown code {
+  border-radius: 3px;
+  background: var(--vscode-textCodeBlock-background);
+  font-family: var(--vscode-editor-font-family);
+  font-size: 0.92em;
+  padding: 1px 4px;
+}
+
 .tool-result-file-row {
   display: flex;
   align-items: center;
