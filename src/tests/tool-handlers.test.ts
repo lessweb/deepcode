@@ -3,9 +3,12 @@ import assert from "node:assert/strict";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import type { ToolExecutionContext } from "../tools/executor";
+import { setTimeout as delay } from "node:timers/promises";
+import type { ProcessTimeoutControl, ToolExecutionContext } from "../tools/executor";
+import { handleBashTool } from "../tools/bash-handler";
 import { handleEditTool } from "../tools/edit-handler";
 import { handleReadTool } from "../tools/read-handler";
+import { handleUpdatePlanTool } from "../tools/update-plan-handler";
 import { handleWriteTool } from "../tools/write-handler";
 
 const tempDirs: string[] = [];
@@ -19,14 +22,117 @@ afterEach(() => {
   }
 });
 
+test("Bash streams stdout and stderr before command completion", async () => {
+  const workspace = createTempWorkspace();
+  const chunks: string[] = [];
+  let completed = false;
+
+  const resultPromise = handleBashTool(
+    {
+      command: "printf 'first\\n'; sleep 1; printf 'second\\n'; printf 'err\\n' >&2",
+    },
+    createContext("bash-live-output", workspace, {
+      onProcessStdout: (_pid, chunk) => {
+        chunks.push(chunk);
+      },
+    })
+  ).finally(() => {
+    completed = true;
+  });
+
+  await waitFor(() => chunks.join("").includes("first"), 1500);
+
+  assert.equal(completed, false);
+
+  const result = await resultPromise;
+  const streamedOutput = chunks.join("");
+  assert.equal(result.ok, true);
+  assert.match(streamedOutput, /first/);
+  assert.match(streamedOutput, /second/);
+  assert.match(streamedOutput, /err/);
+});
+
+test("Bash terminates commands that exceed the configured timeout", async () => {
+  const workspace = createTempWorkspace();
+  const exitedPids: Array<string | number> = [];
+
+  const result = await handleBashTool(
+    {
+      command: "printf 'start\\n'; sleep 5; printf 'done\\n'",
+    },
+    createContext("bash-timeout", workspace, {
+      bashTimeoutMs: 100,
+      bashMinTimeoutMs: 1,
+      onProcessExit: (pid) => {
+        exitedPids.push(pid);
+      },
+    })
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.error, "Command timed out.");
+  assert.equal(result.metadata?.timedOut, true);
+  assert.equal(result.metadata?.timeoutMs, 100);
+  assert.doesNotMatch(result.output ?? "", /done/);
+  assert.equal(exitedPids.length, 1);
+});
+
+test("Bash timeout control can extend the active command deadline", async () => {
+  const workspace = createTempWorkspace();
+  let timeoutControl: ProcessTimeoutControl | null = null;
+
+  const result = await handleBashTool(
+    {
+      command: "sleep 0.2; printf 'done\\n'",
+    },
+    createContext("bash-timeout-extend", workspace, {
+      bashTimeoutMs: 100,
+      bashMinTimeoutMs: 1,
+      onProcessTimeoutControl: (_pid, control) => {
+        if (control) {
+          timeoutControl = control;
+          control.setTimeoutMs(1000);
+        }
+      },
+    })
+  );
+
+  assert.ok(timeoutControl);
+  assert.equal(result.ok, true);
+  assert.match(result.output ?? "", /done/);
+  assert.equal(result.metadata?.timedOut, false);
+  assert.equal(result.metadata?.timeoutMs, 1000);
+});
+
+test("UpdatePlan accepts a markdown task list string", async () => {
+  const workspace = createTempWorkspace();
+  const plan = ["## Task List", "", "- [>] Inspect current behavior", "- [ ] Implement UpdatePlan"].join("\n");
+
+  const result = await handleUpdatePlanTool({ plan }, createContext("update-plan", workspace));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.name, "UpdatePlan");
+  assert.equal(result.output, "Plan updated.");
+  assert.equal(result.metadata?.plan, plan);
+});
+
+test("UpdatePlan rejects non-string plan payloads", async () => {
+  const workspace = createTempWorkspace();
+
+  const result = await handleUpdatePlanTool(
+    { plan: [{ step: "Inspect current behavior", status: "in_progress" }] },
+    createContext("update-plan-invalid", workspace)
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.name, "UpdatePlan");
+  assert.match(result.error ?? "", /InputValidationError/);
+});
+
 test("Read returns snippet metadata and Edit can scope replacements by snippet_id", async () => {
   const workspace = createTempWorkspace();
   const filePath = path.join(workspace, "sample.txt");
-  fs.writeFileSync(
-    filePath,
-    ["alpha", "target = 1", "omega", "beta", "target = 1", "done"].join("\n"),
-    "utf8"
-  );
+  fs.writeFileSync(filePath, ["alpha", "target = 1", "omega", "beta", "target = 1", "done"].join("\n"), "utf8");
 
   const sessionId = "snippet-scope";
   const readResult = await handleReadTool(
@@ -35,11 +141,7 @@ test("Read returns snippet metadata and Edit can scope replacements by snippet_i
   );
 
   assert.equal(readResult.ok, true);
-  const snippet = (readResult.metadata?.snippet ?? null) as {
-    id: string;
-    startLine: number;
-    endLine: number;
-  } | null;
+  const snippet = (readResult.metadata?.snippet ?? null) as { id: string; startLine: number; endLine: number } | null;
   assert.ok(snippet);
   assert.equal(snippet?.startLine, 4);
   assert.equal(snippet?.endLine, 5);
@@ -48,7 +150,7 @@ test("Read returns snippet metadata and Edit can scope replacements by snippet_i
     {
       snippet_id: snippet?.id,
       old_string: "target = 1",
-      new_string: "target = 2"
+      new_string: "target = 2",
     },
     createContext(sessionId, workspace)
   );
@@ -77,16 +179,13 @@ test("Edit returns candidate match snippets when old_string is not unique", asyn
     {
       file_path: filePath,
       old_string: "city",
-      new_string: "location"
+      new_string: "location",
     },
     createContext(sessionId, workspace)
   );
 
   assert.equal(editResult.ok, false);
-  assert.equal(
-    editResult.error,
-    "old_string is not unique; use snippet_id, replace_all, or provide more context."
-  );
+  assert.equal(editResult.error, "old_string is not unique; use snippet_id, replace_all, or provide more context.");
   const candidates = (editResult.metadata?.candidates ?? []) as Array<{
     snippet_id: string;
     start_line: number;
@@ -97,6 +196,184 @@ test("Edit returns candidate match snippets when old_string is not unique", asyn
   assert.ok(candidates[0]?.snippet_id);
   assert.equal(candidates[0]?.start_line, 1);
   assert.match(candidates[0]?.preview ?? "", /city/);
+});
+
+test("Edit returns closest matches only above threshold with surrounding context", async () => {
+  const workspace = createTempWorkspace();
+  const filePath = path.join(workspace, "closest.ts");
+  fs.writeFileSync(
+    filePath,
+    [
+      "const before = true;",
+      "function computeSubtotal(value: number) {",
+      "  return value;",
+      "}",
+      "const after = true;",
+    ].join("\n"),
+    "utf8"
+  );
+
+  const sessionId = "closest-match-context";
+  await handleReadTool({ file_path: filePath }, createContext(sessionId, workspace));
+
+  const closeResult = await handleEditTool(
+    {
+      file_path: filePath,
+      old_string: "function computeTotal(value: number) {",
+      new_string: "function computeTotal(input: number) {",
+    },
+    createContext(sessionId, workspace)
+  );
+
+  assert.equal(closeResult.ok, false);
+  assert.equal(closeResult.error, "old_string not found in file.");
+  const closestMatch = closeResult.metadata?.closest_match as
+    | { snippet_id?: string; start_line?: number; end_line?: number; similarity?: number; preview?: string }
+    | undefined;
+  assert.ok(closestMatch?.snippet_id);
+  assert.equal(closestMatch.start_line, 1);
+  assert.equal(closestMatch.end_line, 4);
+  assert.ok((closestMatch.similarity ?? 0) >= 0.8);
+  assert.match(closestMatch.preview ?? "", /const before = true/);
+  assert.match(closestMatch.preview ?? "", /return value/);
+
+  const lowResult = await handleEditTool(
+    {
+      file_path: filePath,
+      old_string: 'query: string = Field(description="search query")',
+      new_string: "query: string",
+    },
+    createContext(sessionId, workspace)
+  );
+
+  assert.equal(lowResult.ok, false);
+  assert.equal(lowResult.error, "old_string not found in file.");
+  assert.equal(lowResult.metadata?.closest_match, undefined);
+
+  const partialRead = await handleReadTool(
+    { file_path: filePath, offset: 2, limit: 2 },
+    createContext(sessionId, workspace)
+  );
+  const snippet = (partialRead.metadata?.snippet ?? null) as { id: string } | null;
+  assert.ok(snippet);
+
+  const scopedCloseResult = await handleEditTool(
+    {
+      snippet_id: snippet.id,
+      old_string: "function computeTotal(value: number) {",
+      new_string: "function computeTotal(input: number) {",
+    },
+    createContext(sessionId, workspace)
+  );
+
+  assert.equal(scopedCloseResult.ok, false);
+  const scopedClosestMatch = scopedCloseResult.metadata?.closest_match as
+    | { start_line?: number; end_line?: number; preview?: string }
+    | undefined;
+  assert.equal(scopedClosestMatch?.start_line, 2);
+  assert.equal(scopedClosestMatch?.end_line, 3);
+  assert.doesNotMatch(scopedClosestMatch?.preview ?? "", /const before = true/);
+});
+
+test("Edit allows outdated snippet matches but reports outdated snippet when no match is found", async () => {
+  const workspace = createTempWorkspace();
+  const filePath = path.join(workspace, "snippet-outdated.txt");
+  fs.writeFileSync(filePath, ["alpha = 1", "beta = 1", "gamma = 1"].join("\n"), "utf8");
+
+  const sessionId = "outdated-snippet-miss";
+  const readResult = await handleReadTool({ file_path: filePath }, createContext(sessionId, workspace));
+  const snippet = (readResult.metadata?.snippet ?? null) as { id: string } | null;
+  assert.ok(snippet);
+
+  const firstEdit = await handleEditTool(
+    {
+      snippet_id: snippet.id,
+      old_string: "alpha = 1",
+      new_string: "alpha = 2",
+    },
+    createContext(sessionId, workspace)
+  );
+  assert.equal(firstEdit.ok, true);
+
+  const secondEdit = await handleEditTool(
+    {
+      snippet_id: snippet.id,
+      old_string: "beta = 1",
+      new_string: "beta = 2",
+    },
+    createContext(sessionId, workspace)
+  );
+  assert.equal(secondEdit.ok, true);
+  assert.equal(fs.readFileSync(filePath, "utf8"), ["alpha = 2", "beta = 2", "gamma = 1"].join("\n"));
+
+  const missingEdit = await handleEditTool(
+    {
+      snippet_id: snippet.id,
+      old_string: "delta = 1",
+      new_string: "delta = 2",
+    },
+    createContext(sessionId, workspace)
+  );
+
+  assert.equal(missingEdit.ok, false);
+  assert.equal(
+    missingEdit.error,
+    "old_string was not found in this snippet scope. The file has changed since this snippet was created. Read the file again before editing."
+  );
+  const outdatedScope = (missingEdit.metadata?.scope ?? {}) as { snippet_id?: string };
+  assert.equal(outdatedScope.snippet_id, snippet.id);
+
+  const freshRead = await handleReadTool({ file_path: filePath }, createContext(sessionId, workspace));
+  const freshSnippet = (freshRead.metadata?.snippet ?? null) as { id: string } | null;
+  assert.ok(freshSnippet);
+
+  const freshMissingEdit = await handleEditTool(
+    {
+      snippet_id: freshSnippet.id,
+      old_string: "delta = 1",
+      new_string: "delta = 2",
+    },
+    createContext(sessionId, workspace)
+  );
+
+  assert.equal(freshMissingEdit.ok, false);
+  assert.equal(freshMissingEdit.error, "old_string not found in file.");
+});
+
+test("Edit reports outdated snippet when a later Write changes the file and snippet matching fails", async () => {
+  const workspace = createTempWorkspace();
+  const filePath = path.join(workspace, "write-outdated.txt");
+  fs.writeFileSync(filePath, ["alpha = 1", "beta = 1"].join("\n"), "utf8");
+
+  const sessionId = "write-outdated-snippet";
+  const readResult = await handleReadTool({ file_path: filePath }, createContext(sessionId, workspace));
+  const snippet = (readResult.metadata?.snippet ?? null) as { id: string } | null;
+  assert.ok(snippet);
+
+  const writeResult = await handleWriteTool(
+    {
+      file_path: filePath,
+      content: ["alpha = 2", "gamma = 2"].join("\n"),
+    },
+    createContext(sessionId, workspace)
+  );
+
+  assert.equal(writeResult.ok, true);
+
+  const editResult = await handleEditTool(
+    {
+      snippet_id: snippet.id,
+      old_string: "beta = 1",
+      new_string: "beta = 2",
+    },
+    createContext(sessionId, workspace)
+  );
+
+  assert.equal(editResult.ok, false);
+  assert.equal(
+    editResult.error,
+    "old_string was not found in this snippet scope. The file has changed since this snippet was created. Read the file again before editing."
+  );
 });
 
 test("replace_all requires expected_occurrences for broad short-fragment replacements", async () => {
@@ -113,16 +390,13 @@ test("replace_all requires expected_occurrences for broad short-fragment replace
       file_path: filePath,
       old_string: fragment,
       new_string: "        schema:\n          type: array",
-      replace_all: true
+      replace_all: true,
     },
     createContext(sessionId, workspace)
   );
 
   assert.equal(blockedResult.ok, false);
-  assert.match(
-    blockedResult.error ?? "",
-    /provide expected_occurrences to confirm this broader replacement/
-  );
+  assert.match(blockedResult.error ?? "", /provide expected_occurrences to confirm this broader replacement/);
 
   const allowedResult = await handleEditTool(
     {
@@ -130,7 +404,7 @@ test("replace_all requires expected_occurrences for broad short-fragment replace
       old_string: fragment,
       new_string: "        schema:\n          type: array",
       replace_all: true,
-      expected_occurrences: 3
+      expected_occurrences: 3,
     },
     createContext(sessionId, workspace)
   );
@@ -141,7 +415,7 @@ test("replace_all requires expected_occurrences for broad short-fragment replace
     [
       "        schema:\n          type: array",
       "        schema:\n          type: array",
-      "        schema:\n          type: array"
+      "        schema:\n          type: array",
     ].join("\n---\n")
   );
 });
@@ -158,7 +432,7 @@ test("Edit accepts a unique loose-escape match when only escaping differs", asyn
     {
       file_path: filePath,
       old_string: "params['city_json'] = f'\\\\\"{city}\\\\\"'",
-      new_string: "params['city_json'] = city"
+      new_string: "params['city_json'] = city",
     },
     createContext(sessionId, workspace, {
       createOpenAIClient: () => ({
@@ -173,23 +447,97 @@ test("Edit accepts a unique loose-escape match when only escaping differs", asyn
                         "<response>" +
                         "<corrected_old_string><![CDATA[params['city_json'] = f'\"{city}\"']]></corrected_old_string>" +
                         "<corrected_new_string><![CDATA[params['city_json'] = city]]></corrected_new_string>" +
-                        "</response>"
-                    }
-                  }
-                ]
-              })
-            }
-          }
+                        "</response>",
+                    },
+                  },
+                ],
+              }),
+            },
+          },
         } as any,
         model: "test-model",
-        thinkingEnabled: false
-      })
+        thinkingEnabled: false,
+      }),
     })
   );
 
   assert.equal(editResult.ok, true);
   assert.equal(editResult.metadata?.matched_via, "llm_escape_correction");
   assert.equal(fs.readFileSync(filePath, "utf8"), "params['city_json'] = city\n");
+});
+
+test("Edit accepts a unique loose-escape match for over-escaped unicode sequences", async () => {
+  const workspace = createTempWorkspace();
+  const filePath = path.join(workspace, "keys.ts");
+  fs.writeFileSync(filePath, 'const sequence = "\\u001B[13;2~";\n', "utf8");
+
+  const sessionId = "unicode-loose-escape";
+  await handleReadTool({ file_path: filePath }, createContext(sessionId, workspace));
+
+  let llmCalls = 0;
+  const editResult = await handleEditTool(
+    {
+      file_path: filePath,
+      old_string: 'const sequence = "\\\\u001B[13;2~";',
+      new_string: 'const sequence = "\\\\u001B[13;130u";',
+    },
+    createContext(sessionId, workspace, {
+      createOpenAIClient: () => ({
+        client: {
+          chat: {
+            completions: {
+              create: async (request: { messages?: Array<{ content?: string }> }) => {
+                llmCalls += 1;
+                assert.match(String(request.messages?.[1]?.content ?? ""), /<matched_text><!\[CDATA\[/);
+                return {
+                  choices: [
+                    {
+                      message: {
+                        content:
+                          "<response>" +
+                          '<corrected_old_string><![CDATA[const sequence = "\\u001B[13;2~";]]></corrected_old_string>' +
+                          '<corrected_new_string><![CDATA[const sequence = "\\u001B[13;130u";]]></corrected_new_string>' +
+                          "</response>",
+                      },
+                    },
+                  ],
+                };
+              },
+            },
+          },
+        } as any,
+        model: "test-model",
+        thinkingEnabled: false,
+      }),
+    })
+  );
+
+  assert.equal(editResult.ok, true);
+  assert.equal(llmCalls, 1);
+  assert.equal(editResult.metadata?.matched_via, "llm_escape_correction");
+  assert.equal(fs.readFileSync(filePath, "utf8"), 'const sequence = "\\u001B[13;130u";\n');
+});
+
+test("Edit strips accidental read-result tabs after newlines when that creates a unique match", async () => {
+  const workspace = createTempWorkspace();
+  const filePath = path.join(workspace, "tabs.ts");
+  fs.writeFileSync(filePath, ["function demo() {", "  return 1;", "}"].join("\n") + "\n", "utf8");
+
+  const sessionId = "line-leading-tab-correction";
+  await handleReadTool({ file_path: filePath }, createContext(sessionId, workspace));
+
+  const editResult = await handleEditTool(
+    {
+      file_path: filePath,
+      old_string: "function demo() {\n\t  return 1;\n\t}",
+      new_string: "function demo() {\n\t  return 2;\n\t}",
+    },
+    createContext(sessionId, workspace)
+  );
+
+  assert.equal(editResult.ok, true);
+  assert.equal(editResult.metadata?.matched_via, "line_leading_tab_correction");
+  assert.equal(fs.readFileSync(filePath, "utf8"), ["function demo() {", "  return 2;", "}"].join("\n") + "\n");
 });
 
 test("Write repairs JSON object content for .json files", async () => {
@@ -201,8 +549,8 @@ test("Write repairs JSON object content for .json files", async () => {
       file_path: filePath,
       content: {
         name: "demo",
-        private: true
-      } as unknown as string
+        private: true,
+      } as unknown as string,
     },
     createContext("write-json-object", workspace)
   );
@@ -224,7 +572,7 @@ test("Write updates file state so a follow-up Edit can succeed without another R
   const writeResult = await handleWriteTool(
     {
       file_path: filePath,
-      content: "alpha\nbeta\n"
+      content: "alpha\nbeta\n",
     },
     createContext("write-then-edit", workspace)
   );
@@ -237,7 +585,7 @@ test("Write updates file state so a follow-up Edit can succeed without another R
     {
       file_path: filePath,
       old_string: "beta",
-      new_string: "gamma"
+      new_string: "gamma",
     },
     createContext("write-then-edit", workspace)
   );
@@ -255,15 +603,12 @@ test("Write requires a full read before overwriting an existing file", async () 
   fs.writeFileSync(filePath, "line1\nline2\nline3\n", "utf8");
 
   const sessionId = "write-full-read";
-  await handleReadTool(
-    { file_path: filePath, offset: 2, limit: 1 },
-    createContext(sessionId, workspace)
-  );
+  await handleReadTool({ file_path: filePath, offset: 2, limit: 1 }, createContext(sessionId, workspace));
 
   const blockedResult = await handleWriteTool(
     {
       file_path: filePath,
-      content: "rewritten"
+      content: "rewritten",
     },
     createContext(sessionId, workspace)
   );
@@ -280,7 +625,7 @@ test("Write can overwrite an existing empty file without a prior read", async ()
   const writeResult = await handleWriteTool(
     {
       file_path: filePath,
-      content: "initialized\n"
+      content: "initialized\n",
     },
     createContext("write-empty-existing", workspace)
   );
@@ -308,16 +653,13 @@ test("Edit rejects stale reads after the file changes on disk", async () => {
     {
       file_path: filePath,
       old_string: "after",
-      new_string: "final"
+      new_string: "final",
     },
     createContext(sessionId, workspace)
   );
 
   assert.equal(editResult.ok, false);
-  assert.equal(
-    editResult.error,
-    "File has been modified since read. Read it again before editing."
-  );
+  assert.equal(editResult.error, "File has been modified since read. Read it again before editing.");
 });
 
 test("Write preserves the exact trailing newline policy from the provided content", async () => {
@@ -327,7 +669,7 @@ test("Write preserves the exact trailing newline policy from the provided conten
   const writeResult = await handleWriteTool(
     {
       file_path: filePath,
-      content: "no trailing newline"
+      content: "no trailing newline",
     },
     createContext("write-no-newline", workspace)
   );
@@ -349,7 +691,7 @@ test("Edit preserves CRLF line endings for existing files", async () => {
     {
       file_path: filePath,
       old_string: "beta",
-      new_string: "gamma"
+      new_string: "gamma",
     },
     createContext(sessionId, workspace)
   );
@@ -370,10 +712,7 @@ test("Read returns an acknowledgement for images and attaches the image as a fol
     )
   );
 
-  const readResult = await handleReadTool(
-    { file_path: filePath },
-    createContext("image-read", workspace)
-  );
+  const readResult = await handleReadTool({ file_path: filePath }, createContext("image-read", workspace));
 
   assert.equal(readResult.ok, true);
   assert.equal(readResult.output, "File loaded.");
@@ -384,9 +723,7 @@ test("Read returns an acknowledgement for images and attaches the image as a fol
   const followUpMessage = readResult.followUpMessages?.[0];
   assert.equal(followUpMessage?.role, "system");
   assert.match(followUpMessage?.content ?? "", /pixel\.png/);
-  const contentParams = Array.isArray(followUpMessage?.contentParams)
-    ? followUpMessage.contentParams
-    : [];
+  const contentParams = Array.isArray(followUpMessage?.contentParams) ? followUpMessage.contentParams : [];
   assert.equal(contentParams.length, 1);
   assert.equal((contentParams[0] as { type?: unknown }).type, "image_url");
   assert.match(
@@ -408,10 +745,10 @@ function createContext(
       type: "function",
       function: {
         name: "test",
-        arguments: "{}"
-      }
+        arguments: "{}",
+      },
     },
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -419,4 +756,15 @@ function createTempWorkspace(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "deepcode-tools-"));
   tempDirs.push(dir);
   return dir;
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (predicate()) {
+      return;
+    }
+    await delay(25);
+  }
+  assert.equal(predicate(), true);
 }

@@ -6,25 +6,19 @@ import {
   posixPathToWindowsPath,
   resolveWindowsGitBashPath,
   rewriteWindowsNullRedirect,
-  windowsPathToPosixPath
+  windowsPathToPosixPath,
 } from "../common/shell-utils";
 import { isAbsoluteFilePath, normalizeFilePath } from "../common/state";
 
 test("Windows paths convert to Git Bash POSIX paths", () => {
   assert.equal(windowsPathToPosixPath("C:\\Users\\foo"), "/c/Users/foo");
-  assert.equal(
-    windowsPathToPosixPath("d:\\IdeaProjects\\guesswho-api"),
-    "/d/IdeaProjects/guesswho-api"
-  );
+  assert.equal(windowsPathToPosixPath("d:\\IdeaProjects\\guesswho-api"), "/d/IdeaProjects/guesswho-api");
   assert.equal(windowsPathToPosixPath("\\\\server\\share\\dir"), "//server/share/dir");
 });
 
 test("Git Bash POSIX paths convert to native Windows paths", () => {
   assert.equal(posixPathToWindowsPath("/c/Users/foo"), "C:\\Users\\foo");
-  assert.equal(
-    posixPathToWindowsPath("/cygdrive/d/IdeaProjects/guesswho-api"),
-    "D:\\IdeaProjects\\guesswho-api"
-  );
+  assert.equal(posixPathToWindowsPath("/cygdrive/d/IdeaProjects/guesswho-api"), "D:\\IdeaProjects\\guesswho-api");
   assert.equal(posixPathToWindowsPath("//server/share/dir"), "\\\\server\\share\\dir");
 });
 
@@ -42,10 +36,7 @@ test("Shell kind detection supports Windows bash.exe paths", () => {
     buildDisableExtglobCommand("C:\\Program Files\\Git\\bin\\bash.exe"),
     "shopt -u extglob 2>/dev/null || true"
   );
-  assert.equal(
-    buildDisableExtglobCommand("/bin/zsh"),
-    "setopt NO_EXTENDED_GLOB 2>/dev/null || true"
-  );
+  assert.equal(buildDisableExtglobCommand("/bin/zsh"), "setopt NO_EXTENDED_GLOB 2>/dev/null || true");
 });
 
 test("Windows Git Bash detection prefers bash.exe from PATH", () => {
@@ -53,7 +44,7 @@ test("Windows Git Bash detection prefers bash.exe from PATH", () => {
   const resolved = resolveWindowsGitBashPath({
     findExecutableCandidates: (executable) => (executable === "bash" ? [bashPath] : []),
     findGitExecPath: () => null,
-    existsSync: (candidate) => candidate === bashPath
+    existsSync: (candidate) => candidate === bashPath,
   });
 
   assert.equal(resolved, bashPath);
@@ -64,7 +55,7 @@ test("Windows Git Bash detection derives bash.exe from git exec path", () => {
   const resolved = resolveWindowsGitBashPath({
     findExecutableCandidates: () => [],
     findGitExecPath: () => "D:/Tools/Git/mingw64/libexec/git-core",
-    existsSync: (candidate) => candidate === bashPath
+    existsSync: (candidate) => candidate === bashPath,
   });
 
   assert.equal(resolved, bashPath);
@@ -73,10 +64,9 @@ test("Windows Git Bash detection derives bash.exe from git exec path", () => {
 test("Windows Git Bash detection derives bash.exe from git.exe candidates", () => {
   const bashPath = "D:\\Tools\\Git\\bin\\bash.exe";
   const resolved = resolveWindowsGitBashPath({
-    findExecutableCandidates: (executable) =>
-      executable === "git" ? ["D:\\Tools\\Git\\cmd\\git.exe"] : [],
+    findExecutableCandidates: (executable) => (executable === "git" ? ["D:\\Tools\\Git\\cmd\\git.exe"] : []),
     findGitExecPath: () => null,
-    existsSync: (candidate) => candidate === bashPath
+    existsSync: (candidate) => candidate === bashPath,
   });
 
   assert.equal(resolved, bashPath);
@@ -91,13 +81,9 @@ test("Windows Git Bash detection skips WSL System32 bash.exe in PATH results", (
   const gitBash = "D:\\Tools\\Git\\bin\\bash.exe";
   const resolved = resolveWindowsGitBashPath({
     findExecutableCandidates: (executable) =>
-      executable === "bash"
-        ? [system32Bash]
-        : executable === "git"
-          ? ["D:\\Tools\\Git\\cmd\\git.exe"]
-          : [],
+      executable === "bash" ? [system32Bash] : executable === "git" ? ["D:\\Tools\\Git\\cmd\\git.exe"] : [],
     findGitExecPath: () => null,
-    existsSync: (candidate) => candidate === gitBash
+    existsSync: (candidate) => candidate === gitBash,
   });
 
   assert.equal(resolved, gitBash);
@@ -108,22 +94,13 @@ test("File tool path normalization converts Git Bash drive paths on Windows", ()
     normalizeFilePath("/d/IdeaProjects/guesswho-api/API_DOCUMENTATION.md", "win32"),
     "D:\\IdeaProjects\\guesswho-api\\API_DOCUMENTATION.md"
   );
-  assert.equal(
-    normalizeFilePath("/cygdrive/c/Users/foo/file.txt", "win32"),
-    "C:\\Users\\foo\\file.txt"
-  );
+  assert.equal(normalizeFilePath("/cygdrive/c/Users/foo/file.txt", "win32"), "C:\\Users\\foo\\file.txt");
   assert.equal(normalizeFilePath("/dev/null", "win32"), "\\dev\\null");
 });
 
 test("File tool absolute checks accept Git Bash drive paths but reject root-relative POSIX paths on Windows", () => {
-  assert.equal(
-    isAbsoluteFilePath("/d/IdeaProjects/guesswho-api/API_DOCUMENTATION.md", "win32"),
-    true
-  );
-  assert.equal(
-    isAbsoluteFilePath("D:/IdeaProjects/guesswho-api/API_DOCUMENTATION.md", "win32"),
-    true
-  );
+  assert.equal(isAbsoluteFilePath("/d/IdeaProjects/guesswho-api/API_DOCUMENTATION.md", "win32"), true);
+  assert.equal(isAbsoluteFilePath("D:/IdeaProjects/guesswho-api/API_DOCUMENTATION.md", "win32"), true);
   assert.equal(isAbsoluteFilePath("/dev/null", "win32"), false);
   assert.equal(isAbsoluteFilePath("./API_DOCUMENTATION.md", "win32"), false);
 });

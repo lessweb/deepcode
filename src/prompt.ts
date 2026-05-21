@@ -8,161 +8,6 @@ import type { SessionMessage } from "./session";
 import { findGitBashPath, resolveShellPath } from "./common/shell-utils";
 import { supportsMultimodal } from "./common/model-capabilities";
 
-export const AGENT_DRIFT_GUARD_SKILL = `
----
-name: agent-drift-guard
-description: Detect and correct execution drift while working on user requests. Use when you are actively implementing, debugging, reviewing, or investigating and there is a risk of wandering beyond the user's goal, adding unrequested work, touching live systems, over-exploring, or ignoring repeated user boundary corrections. Especially useful during multi-step coding tasks, production-adjacent requests, ambiguous scopes, and anytime you should self-check whether it is still solving the requested problem.
----
-
-# Agent Drift Guard
-
-Keep execution tightly aligned with the user's actual request.
-
-## Quick Start
-
-Run this mental check before substantial work and again whenever the plan expands:
-
-1. State the user's requested outcome in one sentence.
-2. List explicit non-goals or boundaries the user has set.
-3. Ask whether the next action directly advances the requested outcome.
-4. If not, either cut it or pause to confirm.
-
-## Drift Signals
-
-Treat these as warning signs that execution may be drifting:
-
-- Exploring broadly before opening the most relevant file, command, or artifact.
-- Solving adjacent operational issues when the user asked only for code changes.
-- Adding extra safeguards, scripts, docs, refactors, or cleanup that the user did not ask for.
-- Reframing the task around what seems "better" instead of what was requested.
-- Continuing with a broader plan after the user narrows the scope.
-- Repeating searches or tool calls without increasing certainty.
-- Mixing diagnosis, remediation, and feature work when the user asked for only one of them.
-- Touching production-like state, external systems, or live data without explicit permission.
-
-## Severity Levels
-
-### Level 1: Mild Drift
-
-Examples:
-- One or two extra exploratory commands.
-- Considering a broader solution but not acting on it yet.
-- Briefly over-explaining instead of moving the task forward.
-
-Response:
-- Auto-correct silently.
-- Narrow to the smallest next action.
-- Do not interrupt the user.
-
-### Level 2: Material Drift
-
-Examples:
-- Planning additional deliverables not requested.
-- Writing helper scripts, migrations, docs, or tests outside the asked scope.
-- Expanding from code changes into operational fixes.
-- Continuing after the user has already corrected the scope once.
-
-Response:
-- Stop and realign internally first.
-- If the broader action is avoidable, drop it and continue on scope.
-- If the broader action has non-obvious tradeoffs, ask a brief confirmation question.
-
-### Level 3: Boundary or Risk Violation
-
-Examples:
-- Modifying live systems, production data, external services, or user-owned state without being asked.
-- Taking destructive or hard-to-reverse actions outside the requested scope.
-- Ignoring repeated user instructions about what not to do.
-
-Response:
-- Pause before acting.
-- Surface the exact boundary and ask for confirmation.
-- Offer the smallest on-scope option first.
-
-## Self-Check Loop
-
-Use this loop during execution:
-
-### Before the first meaningful action
-
-Write down mentally:
-- Requested outcome
-- Allowed scope
-- Forbidden scope
-- Smallest useful next step
-
-### After each non-trivial step
-
-Ask:
-- Did this step directly help deliver the requested outcome?
-- Did I learn something that changes scope, or only implementation?
-- Am I about to do more than the user asked?
-
-### After a user correction
-
-Treat the correction as a hard boundary update.
-
-Then:
-- Remove the old broader plan.
-- Do not defend the discarded work.
-- Continue from the narrowed scope.
-- If needed, acknowledge briefly and move on.
-
-## Decision Rules
-
-Use these rules in order:
-
-1. Prefer the most direct artifact first.
-   - Open the relevant file before scanning the whole repo.
-   - Inspect the specific failing path before designing a general framework.
-
-2. Prefer the smallest complete fix.
-   - Solve the asked problem before improving related systems.
-   - Avoid bonus work unless it is required for correctness.
-
-3. Prefer internal correction over user interruption.
-   - If you can shrink back to scope confidently, do it.
-   - Ask only when the next step changes deliverables, risk, or ownership.
-
-4. Treat repeated user constraints as priority signals.
-   - A repeated instruction means your execution style is currently misaligned.
-   - Tighten scope immediately.
-
-5. Separate categories of work.
-   - Code change, investigation, production remediation, cleanup, and documentation are distinct tasks unless the user explicitly combines them.
-
-## Good Intervention Style
-
-When you must pause, keep it short and specific:
-
-- State the potential drift in one sentence.
-- Name the tradeoff or boundary.
-- Offer the smallest on-scope option first.
-
-Example:
-
-"Quick alignment check: I can keep this to the code fix only, or also add an ops cleanup step. I'll stick to the code fix unless you want both."
-
-## Anti-Patterns
-
-Do not:
-
-- Create cleanup scripts, docs, or side tools just because they seem useful.
-- Broaden the task after discovering a neighboring problem.
-- Continue with a plan the user has already rejected.
-- Justify drift with "best practice" when the user asked for a narrower deliverable.
-- Hide extra work inside a larger patch.
-
-## Final Check Before Responding
-
-Before sending the final answer, verify:
-
-- The delivered work matches the requested outcome.
-- No extra deliverables were added without confirmation.
-- Any assumptions are stated briefly.
-- Suggested next steps are optional, not bundled into the completed work.
-`;
-
 const COMPACT_PROMPT_BASE = `Your task is to create a detailed summary of the conversation so far, paying close attention to the user's explicit requests and your previous actions.
 This summary should be thorough in capturing technical details, code patterns, and architectural decisions that would be essential for continuing development work without losing context.
 
@@ -254,6 +99,8 @@ type PromptToolOptions = {
   webSearchEnabled?: boolean;
 };
 
+const DEFAULT_SKILL_TEMPLATES = ["agent-drift-guard.md", "plan-and-execute.md"];
+
 function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): string {
   const toolsDir = path.join(extensionRoot, "templates", "tools");
   if (!fs.existsSync(toolsDir)) {
@@ -281,16 +128,46 @@ function readToolDocs(extensionRoot: string, options: PromptToolOptions = {}): s
   return docs.join("\n\n");
 }
 
-function getCurrentDatePrompt(date = new Date()): string {
-  return `今天是${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日。随着对话的进行，时间在流逝。`;
+function readDefaultSkillDocs(extensionRoot: string): Array<{ name: string; content: string }> {
+  const skillsDir = path.join(extensionRoot, "templates", "skills");
+  return DEFAULT_SKILL_TEMPLATES.map((entry) => {
+    const fullPath = path.join(skillsDir, entry);
+    try {
+      return {
+        name: path.basename(entry, ".md"),
+        content: fs.readFileSync(fullPath, "utf8").trim(),
+      };
+    } catch {
+      return null;
+    }
+  }).filter((skill): skill is { name: string; content: string } => Boolean(skill?.content));
 }
 
-export function getSystemPrompt(projectRoot: string, options: PromptToolOptions = {}): string {
+export function getDefaultSkillPrompt(): string {
+  const skillDocs = readDefaultSkillDocs(getExtensionRoot());
+  if (skillDocs.length === 0) {
+    return "";
+  }
+
+  const blocks = skillDocs.map(
+    (skill) => `<${skill.name}-skill>
+${skill.content}
+</${skill.name}-skill>`
+  );
+  return `Use the skill documents below to assist the user:\n${blocks.join("\n\n")}`;
+}
+
+function getCurrentDateAndModelPrompt(model?: string): string {
+  const date = new Date();
+  let prompt = `今天是${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日。随着对话的进行，时间在流逝。`;
+  prompt += model ? `\n当前LLM模型为${model}，对话中可通过/model命令切换模型。` : "";
+  return prompt;
+}
+
+export function getSystemPrompt(_projectRoot: string, options: PromptToolOptions = {}): string {
   const toolDocs = readToolDocs(getExtensionRoot(), options);
-  const basePrompt = toolDocs
-    ? `${SYSTEM_PROMPT_BASE}\n\n# Available Tools\n\n${toolDocs}`
-    : SYSTEM_PROMPT_BASE;
-  return `${basePrompt}\n\n${getCurrentDatePrompt()}\n\n${getRuntimeContext(projectRoot)}`;
+  const basePrompt = toolDocs ? `${SYSTEM_PROMPT_BASE}\n\n# Available Tools\n\n${toolDocs}` : SYSTEM_PROMPT_BASE;
+  return basePrompt;
 }
 
 export function getCompactPrompt(sessionMessages: SessionMessage[]): string {
@@ -302,14 +179,14 @@ export function getCompactPrompt(sessionMessages: SessionMessage[]): string {
         content: message.content,
         contentParams: message.contentParams,
         messageParams: message.messageParams,
-        createTime: message.createTime
+        createTime: message.createTime,
       })
     )
     .join("\n");
   return `${COMPACT_PROMPT_BASE}\n\nconversation below:\n\n\`\`\`jsonl\n${jsonl}\n\`\`\``;
 }
 
-function getRuntimeContext(projectRoot: string): string {
+export function getRuntimeContext(projectRoot: string, model?: string): string {
   const uname = getUnameInfo();
   const shellPath = getShellPathInfo();
   const shellModeOpts = process.platform === "win32" ? { "shell mode": "git-bash" } : {};
@@ -324,10 +201,14 @@ function getRuntimeContext(projectRoot: string): string {
     ...runtimeVersions,
     "command installed": {
       ripgrep: checkToolInstalled("rg"),
-      jq: checkToolInstalled("jq")
-    }
+      jq: checkToolInstalled("jq"),
+    },
   };
-  return `# Local Workspace Environment\n\n\`\`\`json
+  return `${getCurrentDateAndModelPrompt(model)}
+
+# Local Workspace Environment
+
+\`\`\`json
 ${JSON.stringify(env, null, 2)}
 \`\`\``;
 }
@@ -339,7 +220,7 @@ function checkToolInstalled(tool: string): boolean {
       execFileSync(bashPath, ["-lc", `command -v ${shellSingleQuote(tool)}`], {
         encoding: "utf8",
         stdio: "ignore",
-        windowsHide: true
+        windowsHide: true,
       });
       return true;
     }
@@ -383,7 +264,7 @@ function getCommandVersion(command: string, args: string[]): string | null {
     if (process.platform === "win32") {
       return execFileSync(findGitBashPath(), ["-lc", `${commandText} 2>&1`], {
         encoding: "utf8",
-        windowsHide: true
+        windowsHide: true,
       }).trim();
     }
     return execSync(`${commandText} 2>&1`, { encoding: "utf8" }).trim();
@@ -397,7 +278,7 @@ function getUnameInfo(): string {
     if (process.platform === "win32") {
       return execFileSync(findGitBashPath(), ["-lc", "uname -a"], {
         encoding: "utf8",
-        windowsHide: true
+        windowsHide: true,
       }).trim();
     }
     return execSync("uname -a", { encoding: "utf8" }).trim();
@@ -431,10 +312,7 @@ export type ToolDefinition = {
   };
 };
 
-export function getTools(
-  _options: PromptToolOptions = {},
-  externalTools: ToolDefinition[] = []
-): ToolDefinition[] {
+export function getTools(_options: PromptToolOptions = {}, externalTools: ToolDefinition[] = []): ToolDefinition[] {
   const tools: ToolDefinition[] = [
     {
       type: "function",
@@ -446,18 +324,18 @@ export function getTools(
           properties: {
             command: {
               type: "string",
-              description: "The shell command to execute"
+              description: "The shell command to execute",
             },
             description: {
               type: "string",
               description:
-                'Clear, concise description of what this command does in active voice. Never use words like "complex" or "risk" in the description - just describe what it does.'
-            }
+                'Clear, concise description of what this command does in active voice. Never use words like "complex" or "risk" in the description - just describe what it does.',
+            },
           },
           required: ["command"],
-          additionalProperties: false
-        }
-      }
+          additionalProperties: false,
+        },
+      },
     },
     {
       type: "function",
@@ -470,18 +348,17 @@ export function getTools(
           properties: {
             questions: {
               type: "array",
-              description:
-                "Questions to present to the user. Usually only one question is needed at a time.",
+              description: "Questions to present to the user. Usually only one question is needed at a time.",
               items: {
                 type: "object",
                 properties: {
                   question: {
                     type: "string",
-                    description: "The question to ask the user."
+                    description: "The question to ask the user.",
                   },
                   multiSelect: {
                     type: "boolean",
-                    description: "Whether the user may choose multiple options."
+                    description: "Whether the user may choose multiple options.",
                   },
                   options: {
                     type: "array",
@@ -491,26 +368,50 @@ export function getTools(
                       properties: {
                         label: {
                           type: "string",
-                          description: "The display text for the option."
+                          description: "The display text for the option.",
                         },
                         description: {
                           type: "string",
                           description:
-                            "A detailed explanation or hint about this option to help the user understand what happens if they choose it."
-                        }
+                            "A detailed explanation or hint about this option to help the user understand what happens if they choose it.",
+                        },
                       },
-                      required: ["label"]
-                    }
-                  }
+                      required: ["label"],
+                    },
+                  },
                 },
-                required: ["question", "options"]
-              }
-            }
+                required: ["question", "options"],
+              },
+            },
           },
           required: ["questions"],
-          additionalProperties: false
-        }
-      }
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "UpdatePlan",
+        description:
+          "Update the current task plan. The plan argument must be the complete markdown task list to show as the latest progress state.",
+        parameters: {
+          type: "object",
+          properties: {
+            plan: {
+              type: "string",
+              description:
+                "The complete markdown task list, including task status markers such as [ ], [>], [x], and optional notes.",
+            },
+            explanation: {
+              type: "string",
+              description: "Optional short reason for changing the plan.",
+            },
+          },
+          required: ["plan"],
+          additionalProperties: false,
+        },
+      },
     },
     {
       type: "function",
@@ -522,50 +423,47 @@ export function getTools(
           properties: {
             file_path: {
               type: "string",
-              description: "UNIX-style path to file"
+              description: "UNIX-style path to file",
             },
             offset: {
               type: "number",
-              description: "Line number to start reading from"
+              description: "Line number to start reading from",
             },
             limit: {
               type: "number",
-              description: "Number of lines to read"
+              description: "Number of lines to read",
             },
             pages: {
               type: "string",
-              description:
-                'Page range for PDF files (e.g., "1-5", "3", "10-20"). Only applicable to PDF files.'
-            }
+              description: 'Page range for PDF files (e.g., "1-5", "3", "10-20"). Only applicable to PDF files.',
+            },
           },
           required: ["file_path"],
-          additionalProperties: false
-        }
-      }
+          additionalProperties: false,
+        },
+      },
     },
     {
       type: "function",
       function: {
         name: "write",
-        description:
-          "Create files or overwrite them with a complete string payload. Prefer edit for existing files.",
+        description: "Create files or overwrite them with a complete string payload. Prefer edit for existing files.",
         parameters: {
           type: "object",
           properties: {
             file_path: {
               type: "string",
-              description: "Absolute path to file"
+              description: "Absolute path to file",
             },
             content: {
               type: "string",
-              description:
-                "Complete file content as a single string. Serialize JSON documents before writing."
-            }
+              description: "Complete file content as a single string. Serialize JSON documents before writing.",
+            },
           },
           required: ["file_path", "content"],
-          additionalProperties: false
-        }
-      }
+          additionalProperties: false,
+        },
+      },
     },
     {
       type: "function",
@@ -577,37 +475,36 @@ export function getTools(
           properties: {
             file_path: {
               type: "string",
-              description: "Absolute path to file. Optional when snippet_id is provided."
+              description: "Absolute path to file. Optional when snippet_id is provided.",
             },
             snippet_id: {
               type: "string",
               description:
-                "Snippet id returned by the Read or Edit tool to scope the search range after a partial read."
+                "Snippet id returned by the Read or Edit tool to scope the search range after a partial read.",
             },
             old_string: {
               type: "string",
-              description: "Exact text to replace inside the file or snippet scope"
+              description: "Exact text to replace inside the file or snippet scope",
             },
             new_string: {
               type: "string",
-              description: "Replacement text (must differ from old_string)"
+              description: "Replacement text (must differ from old_string)",
             },
             replace_all: {
               type: "boolean",
               description: "Replace all occurences of old_string (default false)",
-              default: false
+              default: false,
             },
             expected_occurrences: {
               type: "number",
-              description:
-                "Expected number of matches, especially useful as a safety check with replace_all"
-            }
+              description: "Expected number of matches, especially useful as a safety check with replace_all",
+            },
           },
           required: ["old_string", "new_string"],
-          additionalProperties: false
-        }
-      }
-    }
+          additionalProperties: false,
+        },
+      },
+    },
   ];
 
   tools.push({
@@ -621,13 +518,13 @@ export function getTools(
           query: {
             type: "string",
             description:
-              "A search query phrased as a clear, specific natural language question or statement that includes key context."
-          }
+              "A search query phrased as a clear, specific natural language question or statement that includes key context.",
+          },
         },
         required: ["query"],
-        additionalProperties: false
-      }
-    }
+        additionalProperties: false,
+      },
+    },
   });
 
   for (const tool of externalTools) {

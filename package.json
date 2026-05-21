@@ -22,6 +22,7 @@
     "resources/**",
     "templates/tools/**",
     "templates/prompts/**",
+    "templates/skills/**",
     "README.md",
     "README_cn.md",
     "README_en.md",

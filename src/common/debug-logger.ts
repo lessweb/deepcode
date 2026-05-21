@@ -37,21 +37,17 @@ export function getDebugLogPath(): string {
   return path.join(os.homedir(), ".deepcode", "logs", DEBUG_LOG_FILE);
 }
 
-export function normalizeDebugError(error: unknown): {
-  name: string;
-  message: string;
-  stack?: string;
-} {
+export function normalizeDebugError(error: unknown): { name: string; message: string; stack?: string } {
   if (error instanceof Error) {
     return {
       name: error.name,
       message: error.message,
-      stack: error.stack
+      stack: error.stack,
     };
   }
   return {
     name: "UnknownError",
-    message: String(error)
+    message: String(error),
   };
 }
 

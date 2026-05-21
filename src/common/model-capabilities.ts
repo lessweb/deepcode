@@ -4,7 +4,7 @@ export const NON_MULTIMODAL_MODELS = new Set([
   "deepseek-v4-pro",
   "deepseek-v4-flash",
   "deepseek-chat",
-  "deepseek-reasoner"
+  "deepseek-reasoner",
 ]);
 
 export function defaultsToThinkingMode(model: string): boolean {

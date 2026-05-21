@@ -104,14 +104,13 @@ export function logApiError(entry: ApiErrorLogEntry): void {
       error: {
         name: entry.error.name,
         message: maskSensitive(entry.error.message),
-        stack: entry.error.stack ? maskSensitive(entry.error.stack) : undefined
+        stack: entry.error.stack ? maskSensitive(entry.error.stack) : undefined,
       },
-      request: sanitizeRequestPayload(entry.request)
+      request: sanitizeRequestPayload(entry.request),
     };
 
     if (entry.response !== undefined) {
-      logLine.response =
-        typeof entry.response === "string" ? maskSensitive(entry.response) : entry.response;
+      logLine.response = typeof entry.response === "string" ? maskSensitive(entry.response) : entry.response;
     }
 
     const newLine = JSON.stringify(logLine) + "\n";

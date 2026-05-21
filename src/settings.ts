@@ -89,9 +89,7 @@ function normalizeEnv(env: DeepcodingSettings["env"]): Record<string, string> {
   return result;
 }
 
-export function collectDeepcodeEnv(
-  processEnv: SettingsProcessEnv = process.env
-): Record<string, string> {
+export function collectDeepcodeEnv(processEnv: SettingsProcessEnv = process.env): Record<string, string> {
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(processEnv)) {
     if (!key.startsWith("DEEPCODE_") || typeof value !== "string") {
@@ -154,11 +152,11 @@ function mergeMcpServers(
       ...(projectConfig?.env ?? {}),
       ...projectMcpEnv,
       ...systemEnv,
-      ...systemMcpEnv
+      ...systemMcpEnv,
     };
     const config: McpServerConfig = {
       command,
-      args: projectConfig?.args ?? userConfig?.args
+      args: projectConfig?.args ?? userConfig?.args,
     };
     if (Object.keys(env).length > 0) {
       config.env = env;
@@ -181,7 +179,7 @@ export function resolveSettingsSources(
   const env = {
     ...userEnv,
     ...projectEnv,
-    ...systemEnv
+    ...systemEnv,
   };
 
   const model =
@@ -217,10 +215,7 @@ export function resolveSettingsSources(
     false;
 
   const notify =
-    trimString(systemEnv.NOTIFY) ||
-    trimString(projectSettings?.notify) ||
-    trimString(userSettings?.notify) ||
-    "";
+    trimString(systemEnv.NOTIFY) || trimString(projectSettings?.notify) || trimString(userSettings?.notify) || "";
   const webSearchTool =
     trimString(systemEnv.WEB_SEARCH_TOOL) ||
     trimString(projectSettings?.webSearchTool) ||
@@ -237,7 +232,7 @@ export function resolveSettingsSources(
     debugLogEnabled,
     notify: notify || undefined,
     webSearchTool: webSearchTool || undefined,
-    mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv)
+    mcpServers: mergeMcpServers(userSettings, projectSettings, userEnv, projectEnv, systemEnv),
   };
 }
 
@@ -249,9 +244,7 @@ export function resolveSettings(
   return resolveSettingsSources(settings, null, defaults, processEnv);
 }
 
-export function modelConfigKey(
-  config: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">
-): string {
+export function modelConfigKey(config: Pick<ModelConfigSelection, "thinkingEnabled" | "reasoningEffort">): string {
   return config.thinkingEnabled ? `thinking:${config.reasoningEffort}` : "thinking:none";
 }
 
@@ -260,8 +253,7 @@ export function applyModelConfigSelection(
   current: ModelConfigSelection,
   selected: ModelConfigSelection
 ): { settings: DeepcodingSettings; changed: boolean } {
-  const changed =
-    selected.model !== current.model || modelConfigKey(selected) !== modelConfigKey(current);
+  const changed = selected.model !== current.model || modelConfigKey(selected) !== modelConfigKey(current);
   const next: DeepcodingSettings = { ...(settings ?? {}) };
 
   if (!changed) {

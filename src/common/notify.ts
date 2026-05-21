@@ -16,14 +16,40 @@ export function formatDurationSeconds(durationMs: number): string {
   return String(Math.floor(safeMs / 1000));
 }
 
+export type NotifyContext = {
+  status?: string;
+  failReason?: string;
+  body?: string;
+  title?: string;
+};
+
 export function buildNotifyEnv(
   durationMs: number,
-  baseEnv: NodeJS.ProcessEnv = process.env
+  baseEnv: NodeJS.ProcessEnv = process.env,
+  context: NotifyContext = {}
 ): NodeJS.ProcessEnv {
-  return {
+  const env: NodeJS.ProcessEnv = {
     ...baseEnv,
-    DURATION: formatDurationSeconds(durationMs)
+    DURATION: formatDurationSeconds(durationMs),
   };
+  delete env.STATUS;
+  delete env.FAIL_REASON;
+  delete env.BODY;
+  delete env.TITLE;
+
+  if (context.status) {
+    env.STATUS = context.status;
+  }
+  if (context.failReason) {
+    env.FAIL_REASON = context.failReason;
+  }
+  if (context.body) {
+    env.BODY = context.body;
+  }
+  if (context.title) {
+    env.TITLE = context.title;
+  }
+  return env;
 }
 
 export function launchNotifyScript(
@@ -31,7 +57,8 @@ export function launchNotifyScript(
   durationMs: number,
   workingDirectory?: string,
   spawnProcess: NotifySpawn = spawn as unknown as NotifySpawn,
-  configuredEnv: Record<string, string> = {}
+  configuredEnv: Record<string, string> = {},
+  context: NotifyContext = {}
 ): void {
   const commandPath = notifyPath?.trim();
   if (!commandPath) {
@@ -41,8 +68,8 @@ export function launchNotifyScript(
   const options = {
     cwd: workingDirectory,
     detached: process.platform !== "win32",
-    env: buildNotifyEnv(durationMs, { ...process.env, ...configuredEnv }),
-    stdio: "ignore" as const
+    env: buildNotifyEnv(durationMs, { ...process.env, ...configuredEnv }, context),
+    stdio: "ignore" as const,
   };
 
   try {

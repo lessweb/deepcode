@@ -25,13 +25,13 @@ export async function handleAskUserQuestionTool(
     return {
       ok: false,
       name: "AskUserQuestion",
-      error: questions.error
+      error: questions.error,
     };
   }
 
   const metadata: AskUserQuestionMetadata = {
     kind: "ask_user_question",
-    questions: questions.value
+    questions: questions.value,
   };
 
   return {
@@ -39,17 +39,15 @@ export async function handleAskUserQuestionTool(
     name: "AskUserQuestion",
     output: buildQuestionSummary(questions.value),
     metadata,
-    awaitUserResponse: true
+    awaitUserResponse: true,
   };
 }
 
-function parseQuestions(
-  raw: unknown
-): { ok: true; value: AskUserQuestionItem[] } | { ok: false; error: string } {
+function parseQuestions(raw: unknown): { ok: true; value: AskUserQuestionItem[] } | { ok: false; error: string } {
   if (!Array.isArray(raw) || raw.length === 0) {
     return {
       ok: false,
-      error: '"questions" must be a non-empty array.'
+      error: '"questions" must be a non-empty array.',
     };
   }
 
@@ -59,7 +57,7 @@ function parseQuestions(
     if (!item || typeof item !== "object" || Array.isArray(item)) {
       return {
         ok: false,
-        error: `Question at index ${index} must be an object.`
+        error: `Question at index ${index} must be an object.`,
       };
     }
 
@@ -70,7 +68,7 @@ function parseQuestions(
     if (!question) {
       return {
         ok: false,
-        error: `Question at index ${index} is missing a non-empty "question" string.`
+        error: `Question at index ${index} is missing a non-empty "question" string.`,
       };
     }
 
@@ -78,7 +76,7 @@ function parseQuestions(
     if (!Array.isArray(rawOptions) || rawOptions.length === 0) {
       return {
         ok: false,
-        error: `Question at index ${index} must include a non-empty "options" array.`
+        error: `Question at index ${index} must include a non-empty "options" array.`,
       };
     }
 
@@ -88,18 +86,16 @@ function parseQuestions(
       if (!option || typeof option !== "object" || Array.isArray(option)) {
         return {
           ok: false,
-          error: `Option ${optionIndex} for question ${index} must be an object.`
+          error: `Option ${optionIndex} for question ${index} must be an object.`,
         };
       }
 
       const label =
-        typeof (option as { label?: unknown }).label === "string"
-          ? (option as { label: string }).label.trim()
-          : "";
+        typeof (option as { label?: unknown }).label === "string" ? (option as { label: string }).label.trim() : "";
       if (!label) {
         return {
           ok: false,
-          error: `Option ${optionIndex} for question ${index} is missing a non-empty "label" string.`
+          error: `Option ${optionIndex} for question ${index} is missing a non-empty "label" string.`,
         };
       }
 
@@ -110,7 +106,7 @@ function parseQuestions(
 
       options.push({
         label,
-        description: description || undefined
+        description: description || undefined,
       });
     }
 
@@ -122,13 +118,13 @@ function parseQuestions(
     questions.push({
       question,
       multiSelect,
-      options
+      options,
     });
   }
 
   return {
     ok: true,
-    value: questions
+    value: questions,
   };
 }
 

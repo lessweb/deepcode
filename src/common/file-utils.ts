@@ -35,7 +35,7 @@ export function readTextFileWithMetadata(filePath: string): FileReadMetadata {
     content: normalizeContent(raw),
     encoding,
     lineEndings: detectLineEndings(raw),
-    timestamp: Math.floor(stat.mtimeMs)
+    timestamp: Math.floor(stat.mtimeMs),
   };
 }
 
@@ -61,10 +61,7 @@ export function hasFileChangedSinceState(filePath: string, state: FileState): bo
     return false;
   }
 
-  const isFullRead =
-    !state.isPartialView &&
-    typeof state.offset === "undefined" &&
-    typeof state.limit === "undefined";
+  const isFullRead = !state.isPartialView && typeof state.offset === "undefined" && typeof state.limit === "undefined";
 
   return !(isFullRead && current.content === state.content);
 }
@@ -86,11 +83,7 @@ export function buildDiffPreview(
   const newLines = toDiffLines(updated);
 
   let prefix = 0;
-  while (
-    prefix < oldLines.length &&
-    prefix < newLines.length &&
-    oldLines[prefix] === newLines[prefix]
-  ) {
+  while (prefix < oldLines.length && prefix < newLines.length && oldLines[prefix] === newLines[prefix]) {
     prefix += 1;
   }
 
@@ -111,7 +104,7 @@ export function buildDiffPreview(
   const previewLines = [
     `--- ${original === null ? "/dev/null" : `a/${filePath}`}`,
     `+++ b/${filePath}`,
-    `@@ -${oldStart},${oldChanged.length} +${newStart},${newChanged.length} @@`
+    `@@ -${oldStart},${oldChanged.length} +${newStart},${newChanged.length} @@`,
   ];
 
   if (prefix > 0) {

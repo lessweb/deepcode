@@ -20,43 +20,44 @@ afterEach(() => {
   }
 });
 
-test("WebSearch executes the configured script with the query as one argument", async () => {
-  const workspace = createTempWorkspace();
-  const scriptPath = path.join(workspace, "web-search.sh");
-  fs.writeFileSync(
-    scriptPath,
-    [
-      "#!/bin/sh",
-      "printf 'query=%s\\n' \"$1\"",
-      "printf 'cwd=%s\\n' \"$PWD\"",
-      "printf 'webhook=%s\\n' \"$WEBHOOK\""
-    ].join("\n"),
-    "utf8"
-  );
-  fs.chmodSync(scriptPath, 0o755);
+test(
+  "WebSearch executes the configured script with the query as one argument",
+  { skip: process.platform === "win32" },
+  async () => {
+    const workspace = createTempWorkspace();
+    const scriptPath = path.join(workspace, "web-search.sh");
+    fs.writeFileSync(
+      scriptPath,
+      [
+        "#!/bin/sh",
+        "printf 'query=%s\\n' \"$1\"",
+        "printf 'cwd=%s\\n' \"$PWD\"",
+        "printf 'webhook=%s\\n' \"$WEBHOOK\"",
+      ].join("\n"),
+      "utf8"
+    );
+    fs.chmodSync(scriptPath, 0o755);
 
-  const starts: Array<{ id: string | number; command: string }> = [];
-  const exits: Array<string | number> = [];
-  const result = await handleWebSearchTool(
-    { query: "latest node release" },
-    createContext(workspace, {
-      webSearchTool: scriptPath,
-      env: { WEBHOOK: "configured" },
-      onProcessStart: (id, command) => starts.push({ id, command }),
-      onProcessExit: (id) => exits.push(id)
-    })
-  );
-  const realWorkspace = fs.realpathSync(workspace);
+    const starts: Array<{ id: string | number; command: string }> = [];
+    const exits: Array<string | number> = [];
+    const result = await handleWebSearchTool(
+      { query: "latest node release" },
+      createContext(workspace, {
+        webSearchTool: scriptPath,
+        env: { WEBHOOK: "configured" },
+        onProcessStart: (id, command) => starts.push({ id, command }),
+        onProcessExit: (id) => exits.push(id),
+      })
+    );
+    const realWorkspace = fs.realpathSync(workspace);
 
-  assert.equal(result.ok, true);
-  assert.equal(
-    result.output,
-    `query=latest node release\ncwd=${realWorkspace}\nwebhook=configured\n`
-  );
-  assert.equal(starts.length, 1);
-  assert.match(starts[0].command, /^WebSearch: latest node release$/);
-  assert.deepEqual(exits, [starts[0].id]);
-});
+    assert.equal(result.ok, true);
+    assert.equal(result.output, `query=latest node release\ncwd=${realWorkspace}\nwebhook=configured\n`);
+    assert.equal(starts.length, 1);
+    assert.match(starts[0].command, /^WebSearch: latest node release$/);
+    assert.deepEqual(exits, [starts[0].id]);
+  }
+);
 
 test("WebSearch uses the default API when no script is configured", async () => {
   const workspace = createTempWorkspace();
@@ -75,16 +76,16 @@ test("WebSearch uses the default API when no script is configured", async () => 
                 {
                   message: {
                     content:
-                      '{"dominant_language":"en","reason":"Most Node.js release notes are published in English."}'
-                  }
-                }
-              ]
+                      '{"dominant_language":"en","reason":"Most Node.js release notes are published in English."}',
+                  },
+                },
+              ],
             };
           }
           throw new Error(`Unexpected chat prompt: ${prompt}`);
-        }
-      }
-    }
+        },
+      },
+    },
   } as unknown as OpenAI;
 
   globalThis.fetch = (async (input: string | URL, init?: RequestInit) => {
@@ -98,14 +99,14 @@ test("WebSearch uses the default API when no script is configured", async () => 
             organic_results: [
               {
                 title: "Node.js Releases",
-                link: "https://nodejs.org/en/about/previous-releases"
-              }
-            ]
+                link: "https://nodejs.org/en/about/previous-releases",
+              },
+            ],
           },
           null,
           2
-        )
-      })
+        ),
+      }),
     } as Response;
   }) as typeof fetch;
 
@@ -115,7 +116,7 @@ test("WebSearch uses the default API when no script is configured", async () => 
       client: fakeClient,
       machineId: "machine-id-123",
       onProcessStart: (id, command) => starts.push({ id, command }),
-      onProcessExit: (id) => exits.push(id)
+      onProcessExit: (id) => exits.push(id),
     })
   );
 
@@ -134,10 +135,7 @@ test("WebSearch uses the default API when no script is configured", async () => 
 
 test("WebSearch returns a configuration error when neither a script nor an LLM client is available", async () => {
   const workspace = createTempWorkspace();
-  const result = await handleWebSearchTool(
-    { query: "latest node release" },
-    createContext(workspace)
-  );
+  const result = await handleWebSearchTool({ query: "latest node release" }, createContext(workspace));
 
   assert.equal(result.ok, false);
   assert.equal(
@@ -165,8 +163,8 @@ function createContext(
       type: "function",
       function: {
         name: "WebSearch",
-        arguments: "{}"
-      }
+        arguments: "{}",
+      },
     },
     createOpenAIClient: () => ({
       client: options.client ?? null,
@@ -174,10 +172,10 @@ function createContext(
       thinkingEnabled: false,
       webSearchTool: options.webSearchTool,
       env: options.env,
-      machineId: options.machineId
+      machineId: options.machineId,
     }),
     onProcessStart: options.onProcessStart,
-    onProcessExit: options.onProcessExit
+    onProcessExit: options.onProcessExit,
   };
 }
 

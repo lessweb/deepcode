@@ -18,11 +18,11 @@ test("debug logger appends full entries without rotation", () => {
         model: "test-model",
         request: {
           model: "test-model",
-          messages: [{ role: "user", content: `full request content ${index}` }]
+          messages: [{ role: "user", content: `full request content ${index}` }],
         },
         response: {
-          choices: [{ message: { content: `full response content ${index}` } }]
-        }
+          choices: [{ message: { content: `full response content ${index}` } }],
+        },
       });
     }
 

@@ -4,6 +4,7 @@ import { handleAskUserQuestionTool } from "./ask-user-question-handler";
 import { handleBashTool } from "./bash-handler";
 import { handleEditTool } from "./edit-handler";
 import { handleReadTool } from "./read-handler";
+import { handleUpdatePlanTool } from "./update-plan-handler";
 import { handleWebSearchTool } from "./web-search-handler";
 import { handleWriteTool } from "./write-handler";
 import type { McpManager } from "../mcp/mcp-manager";
@@ -37,12 +38,34 @@ export type ToolExecutionContext = {
   createOpenAIClient?: CreateOpenAIClient;
   onProcessStart?: (processId: string | number, command: string) => void;
   onProcessExit?: (processId: string | number) => void;
+  onProcessStdout?: (processId: string | number, chunk: string) => void;
+  onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
+  onBeforeFileMutation?: (filePath: string) => void;
+  onAfterFileMutation?: (filePath: string) => void;
+  bashTimeoutMs?: number;
+  bashMinTimeoutMs?: number;
 };
 
 export type ToolExecutionHooks = {
   onProcessStart?: (processId: string | number, command: string) => void;
   onProcessExit?: (processId: string | number) => void;
+  onProcessStdout?: (processId: string | number, chunk: string) => void;
+  onProcessTimeoutControl?: (processId: string | number, control: ProcessTimeoutControl | null) => void;
+  onBeforeFileMutation?: (filePath: string) => void;
+  onAfterFileMutation?: (filePath: string) => void;
   shouldStop?: () => boolean;
+};
+
+export type ProcessTimeoutInfo = {
+  timeoutMs: number;
+  startedAtMs: number;
+  deadlineAtMs: number;
+  timedOut: boolean;
+};
+
+export type ProcessTimeoutControl = {
+  getInfo: () => ProcessTimeoutInfo;
+  setTimeoutMs: (timeoutMs: number) => ProcessTimeoutInfo;
 };
 
 export type ToolExecutionResult = {
@@ -66,6 +89,13 @@ export type ToolHandler = (
   context: ToolExecutionContext
 ) => Promise<ToolExecutionResult>;
 
+const BUILT_IN_TOOL_NAME_ALIASES = new Map<string, string>([
+  ["Bash", "bash"],
+  ["Read", "read"],
+  ["Write", "write"],
+  ["Edit", "edit"],
+]);
+
 export type ToolCallExecution = {
   toolCallId: string;
   content: string;
@@ -78,11 +108,7 @@ export class ToolExecutor {
   private readonly mcpManager?: McpManager;
   private readonly toolHandlers = new Map<string, ToolHandler>();
 
-  constructor(
-    projectRoot: string,
-    createOpenAIClient?: CreateOpenAIClient,
-    mcpManager?: McpManager
-  ) {
+  constructor(projectRoot: string, createOpenAIClient?: CreateOpenAIClient, mcpManager?: McpManager) {
     this.projectRoot = projectRoot;
     this.createOpenAIClient = createOpenAIClient;
     this.mcpManager = mcpManager;
@@ -107,7 +133,7 @@ export class ToolExecutor {
       executions.push({
         toolCallId: toolCall.id,
         content: this.formatToolResult(result),
-        result
+        result,
       });
       if (hooks?.shouldStop?.()) {
         break;
@@ -122,6 +148,7 @@ export class ToolExecutor {
     this.toolHandlers.set("write", handleWriteTool);
     this.toolHandlers.set("edit", handleEditTool);
     this.toolHandlers.set("AskUserQuestion", handleAskUserQuestionTool);
+    this.toolHandlers.set("UpdatePlan", handleUpdatePlanTool);
     this.toolHandlers.set("WebSearch", handleWebSearchTool);
   }
 
@@ -149,16 +176,15 @@ export class ToolExecutor {
       return null;
     }
 
-    const rawArguments =
-      typeof functionRecord.arguments === "string" ? functionRecord.arguments : "";
+    const rawArguments = typeof functionRecord.arguments === "string" ? functionRecord.arguments : "";
 
     return {
       id: record.id,
       type: "function",
       function: {
         name: functionRecord.name,
-        arguments: rawArguments
-      }
+        arguments: rawArguments,
+      },
     };
   }
 
@@ -168,7 +194,8 @@ export class ToolExecutor {
     hooks?: ToolExecutionHooks
   ): Promise<ToolExecutionResult> {
     const toolName = toolCall.function.name;
-    const handler = this.toolHandlers.get(toolName);
+    const handlerName = BUILT_IN_TOOL_NAME_ALIASES.get(toolName) ?? toolName;
+    const handler = this.toolHandlers.get(handlerName);
     if (!handler) {
       // Try MCP tools
       if (this.mcpManager?.isMcpTool(toolName)) {
@@ -179,7 +206,7 @@ export class ToolExecutor {
       return {
         ok: false,
         name: toolName,
-        error: `Unknown tool: ${toolName}`
+        error: `Unknown tool: ${toolName}`,
       };
     }
 
@@ -188,7 +215,7 @@ export class ToolExecutor {
       return {
         ok: false,
         name: toolName,
-        error: parsedArgs.error
+        error: parsedArgs.error,
       };
     }
 
@@ -199,14 +226,18 @@ export class ToolExecutor {
         toolCall,
         createOpenAIClient: this.createOpenAIClient,
         onProcessStart: hooks?.onProcessStart,
-        onProcessExit: hooks?.onProcessExit
+        onProcessExit: hooks?.onProcessExit,
+        onProcessStdout: hooks?.onProcessStdout,
+        onProcessTimeoutControl: hooks?.onProcessTimeoutControl,
+        onBeforeFileMutation: hooks?.onBeforeFileMutation,
+        onAfterFileMutation: hooks?.onAfterFileMutation,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       return {
         ok: false,
         name: toolName,
-        error: message
+        error: message,
       };
     }
   }
@@ -230,7 +261,7 @@ export class ToolExecutor {
         ok: false,
         error:
           `InputParseError: Failed to parse tool arguments: ${message}. ` +
-          "Ensure the tool call arguments are valid JSON. Prefer Edit over Write for large existing-file changes."
+          "Ensure the tool call arguments are valid JSON. Prefer Edit over Write for large existing-file changes.",
       };
     }
   }
@@ -238,7 +269,7 @@ export class ToolExecutor {
   private formatToolResult(result: ToolExecutionResult): string {
     const payload: Record<string, unknown> = {
       ok: result.ok,
-      name: result.name
+      name: result.name,
     };
 
     if (typeof result.output !== "undefined") {

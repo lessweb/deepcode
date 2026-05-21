@@ -4,7 +4,8 @@ import {
   buildNotifyEnv,
   formatDurationSeconds,
   launchNotifyScript,
-  type NotifySpawn
+  type NotifyContext,
+  type NotifySpawn,
 } from "../common/notify";
 import { applyModelConfigSelection, resolveSettings, resolveSettingsSources } from "../settings";
 
@@ -16,17 +17,17 @@ test("resolveSettings reads top-level thinkingEnabled, notify, and webSearchTool
       env: {
         MODEL: "deepseek-v3.2",
         BASE_URL: "https://example.com/v1",
-        API_KEY: "sk-test"
+        API_KEY: "sk-test",
       },
       thinkingEnabled: true,
       reasoningEffort: "high",
       debugLogEnabled: true,
       notify: "  /tmp/notify.sh  ",
-      webSearchTool: "  /tmp/web-search.sh  "
+      webSearchTool: "  /tmp/web-search.sh  ",
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     TEST_PROCESS_ENV
   );
@@ -46,12 +47,12 @@ test("resolveSettings gives top-level model priority over env MODEL", () => {
     {
       model: "deepseek-v4-flash",
       env: {
-        MODEL: "deepseek-v4-pro"
-      }
+        MODEL: "deepseek-v4-pro",
+      },
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     TEST_PROCESS_ENV
   );
@@ -65,12 +66,12 @@ test("resolveSettings reads THINKING_ENABLED, REASONING_EFFORT, and DEBUG_LOG_EN
       env: {
         THINKING_ENABLED: "true",
         REASONING_EFFORT: "high",
-        DEBUG_LOG_ENABLED: "true"
-      }
+        DEBUG_LOG_ENABLED: "true",
+      },
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     TEST_PROCESS_ENV
   );
@@ -86,12 +87,12 @@ test("resolveSettings ignores removed legacy env.THINKING", () => {
   const resolved = resolveSettings(
     {
       env: {
-        THINKING: "enabled"
-      }
+        THINKING: "enabled",
+      },
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     {}
   );
@@ -108,33 +109,33 @@ test("resolveSettingsSources applies user, project, and DEEPCODE environment pre
         THINKING_ENABLED: "false",
         REASONING_EFFORT: "high",
         DEBUG_LOG_ENABLED: "false",
-        WEBHOOK: "user-webhook"
+        WEBHOOK: "user-webhook",
       },
       model: "user-top-model",
       thinkingEnabled: true,
       reasoningEffort: "max",
-      debugLogEnabled: true
+      debugLogEnabled: true,
     },
     {
       env: {
         API_KEY: "project-key",
         MODEL: "project-env-model",
         THINKING_ENABLED: "false",
-        DEBUG_LOG_ENABLED: "false"
+        DEBUG_LOG_ENABLED: "false",
       },
       model: "project-top-model",
-      thinkingEnabled: true
+      thinkingEnabled: true,
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     {
       DEEPCODE_MODEL: "system-model",
       DEEPCODE_THINKING_ENABLED: "false",
       DEEPCODE_REASONING_EFFORT: "high",
       DEEPCODE_DEBUG_LOG_ENABLED: "true",
-      DEEPCODE_WEBHOOK: "system-webhook"
+      DEEPCODE_WEBHOOK: "system-webhook",
     }
   );
 
@@ -150,7 +151,7 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
   const resolved = resolveSettingsSources(
     {
       env: {
-        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "user-global"
+        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "user-global",
       },
       mcpServers: {
         github: {
@@ -158,31 +159,31 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
           args: ["user-server.js"],
           env: {
             GITHUB_PERSONAL_ACCESS_TOKEN: "user-local",
-            USER_ONLY: "1"
-          }
-        }
-      }
+            USER_ONLY: "1",
+          },
+        },
+      },
     },
     {
       env: {
-        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "project-global"
+        MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "project-global",
       },
       mcpServers: {
         github: {
           command: "python",
           env: {
             GITHUB_PERSONAL_ACCESS_TOKEN: "project-local",
-            PROJECT_ONLY: "1"
-          }
-        }
-      }
+            PROJECT_ONLY: "1",
+          },
+        },
+      },
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     {
-      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global"
+      DEEPCODE_MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
     }
   );
 
@@ -192,7 +193,7 @@ test("resolveSettingsSources merges MCP env with documented priority", () => {
     MCP_GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
     GITHUB_PERSONAL_ACCESS_TOKEN: "system-global",
     USER_ONLY: "1",
-    PROJECT_ONLY: "1"
+    PROJECT_ONLY: "1",
   });
 });
 
@@ -200,12 +201,12 @@ test("resolveSettings defaults DeepSeek v4 models to thinking mode", () => {
   const resolved = resolveSettings(
     {
       env: {
-        MODEL: "deepseek-v4-flash"
-      }
+        MODEL: "deepseek-v4-flash",
+      },
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     TEST_PROCESS_ENV
   );
@@ -218,7 +219,7 @@ test("resolveSettings applies thinking defaults to the fallback model", () => {
     {},
     {
       model: "deepseek-v4-pro",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     TEST_PROCESS_ENV
   );
@@ -231,12 +232,12 @@ test("resolveSettings keeps thinking mode off by default for other models", () =
   const resolved = resolveSettings(
     {
       env: {
-        MODEL: "deepseek-v3.2"
-      }
+        MODEL: "deepseek-v3.2",
+      },
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     TEST_PROCESS_ENV
   );
@@ -248,13 +249,13 @@ test("resolveSettings allows explicit thinkingEnabled to override model defaults
   const resolved = resolveSettings(
     {
       env: {
-        MODEL: "deepseek-v4-pro"
+        MODEL: "deepseek-v4-pro",
       },
-      thinkingEnabled: false
+      thinkingEnabled: false,
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     TEST_PROCESS_ENV
   );
@@ -265,11 +266,11 @@ test("resolveSettings allows explicit thinkingEnabled to override model defaults
 test("resolveSettings defaults invalid reasoning effort to max", () => {
   const resolved = resolveSettings(
     {
-      reasoningEffort: "medium" as never
+      reasoningEffort: "medium" as never,
     },
     {
       model: "default-model",
-      baseURL: "https://default.example.com"
+      baseURL: "https://default.example.com",
     },
     TEST_PROCESS_ENV
   );
@@ -281,19 +282,19 @@ test("applyModelConfigSelection writes model only when the effective model chang
   const result = applyModelConfigSelection(
     {
       env: {
-        MODEL: "deepseek-v4-pro"
+        MODEL: "deepseek-v4-pro",
       },
-      thinkingEnabled: false
+      thinkingEnabled: false,
     },
     {
       model: "deepseek-v4-pro",
       thinkingEnabled: false,
-      reasoningEffort: "max"
+      reasoningEffort: "max",
     },
     {
       model: "deepseek-v4-pro",
       thinkingEnabled: true,
-      reasoningEffort: "high"
+      reasoningEffort: "high",
     }
   );
 
@@ -309,19 +310,19 @@ test("applyModelConfigSelection persists a new selected model and thinking optio
       env: {
         MODEL: "deepseek-v4-pro",
         BASE_URL: "https://api.deepseek.com",
-        API_KEY: "sk-test"
+        API_KEY: "sk-test",
       },
-      thinkingEnabled: false
+      thinkingEnabled: false,
     },
     {
       model: "deepseek-v4-pro",
       thinkingEnabled: false,
-      reasoningEffort: "max"
+      reasoningEffort: "max",
     },
     {
       model: "deepseek-v4-flash",
       thinkingEnabled: true,
-      reasoningEffort: "high"
+      reasoningEffort: "high",
     }
   );
 
@@ -336,20 +337,20 @@ test("applyModelConfigSelection leaves settings untouched when the effective sel
   const result = applyModelConfigSelection(
     {
       env: {
-        MODEL: "deepseek-v4-pro"
+        MODEL: "deepseek-v4-pro",
       },
       thinkingEnabled: true,
-      reasoningEffort: "max"
+      reasoningEffort: "max",
     },
     {
       model: "deepseek-v4-pro",
       thinkingEnabled: true,
-      reasoningEffort: "max"
+      reasoningEffort: "max",
     },
     {
       model: "deepseek-v4-pro",
       thinkingEnabled: true,
-      reasoningEffort: "max"
+      reasoningEffort: "max",
     }
   );
 
@@ -363,47 +364,127 @@ test("formatDurationSeconds preserves sub-second precision and trims trailing ze
   assert.equal(formatDurationSeconds(4000), "4");
 });
 
-test("buildNotifyEnv injects DURATION", () => {
+test("buildNotifyEnv injects DURATION without context", () => {
   const env = buildNotifyEnv(2750, { HOME: "/tmp/home" });
   assert.equal(env.HOME, "/tmp/home");
   assert.equal(env.DURATION, "2");
+  assert.equal(env.STATUS, undefined);
+  assert.equal(env.FAIL_REASON, undefined);
+  assert.equal(env.BODY, undefined);
+  assert.equal(env.TITLE, undefined);
 });
 
-test("launchNotifyScript passes DURATION and falls back to /bin/sh for non-executable scripts", () => {
-  const calls: Array<{
-    command: string;
-    args: string[];
-    options: { cwd?: string | URL; env?: NodeJS.ProcessEnv };
-  }> = [];
-
-  const spawnProcess: NotifySpawn = (command, args, options) => {
-    calls.push({ command, args, options: { cwd: options.cwd, env: options.env } });
-
-    return {
-      once(event, listener) {
-        if (event === "error" && calls.length === 1) {
-          listener({ code: "EACCES" } as NodeJS.ErrnoException);
-        }
-        return this;
-      },
-      unref() {
-        return undefined;
-      }
-    };
+test("buildNotifyEnv injects STATUS, FAIL_REASON, BODY, and TITLE from context", () => {
+  const context: NotifyContext = {
+    status: "failed",
+    failReason: "API key not found",
+    body: "Hello, this is the last assistant message.",
+    title: "Fix login bug",
   };
-
-  launchNotifyScript("/tmp/notify.sh", 2750, "/tmp/project", spawnProcess, {
-    WEBHOOK: "configured"
-  });
-
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0]?.command, "/tmp/notify.sh");
-  assert.deepEqual(calls[0]?.args, []);
-  assert.equal(calls[0]?.options.cwd, "/tmp/project");
-  assert.equal(calls[0]?.options.env?.DURATION, "2");
-  assert.equal(calls[0]?.options.env?.WEBHOOK, "configured");
-  assert.equal(calls[1]?.command, "/bin/sh");
-  assert.deepEqual(calls[1]?.args, ["/tmp/notify.sh"]);
-  assert.equal(calls[1]?.options.cwd, "/tmp/project");
-  assert.equal(calls[1]?.options.env?.DURATION, "2");
+  const env = buildNotifyEnv(5000, { HOME: "/tmp/home" }, context);
+  assert.equal(env.HOME, "/tmp/home");
+  assert.equal(env.DURATION, "5");
+  assert.equal(env.STATUS, "failed");
+  assert.equal(env.FAIL_REASON, "API key not found");
+  assert.equal(env.BODY, "Hello, this is the last assistant message.");
+  assert.equal(env.TITLE, "Fix login bug");
 });
+
+test("buildNotifyEnv omits optional context fields when not provided", () => {
+  const env = buildNotifyEnv(
+    1000,
+    {
+      HOME: "/tmp/home",
+      STATUS: "stale-status",
+      FAIL_REASON: "stale-failure",
+      BODY: "stale-body",
+      TITLE: "stale-title",
+    },
+    { status: "completed" }
+  );
+  assert.equal(env.STATUS, "completed");
+  assert.equal(env.FAIL_REASON, undefined);
+  assert.equal(env.BODY, undefined);
+  assert.equal(env.TITLE, undefined);
+});
+
+test("buildNotifyEnv ignores empty strings in context", () => {
+  const env = buildNotifyEnv(
+    1000,
+    { HOME: "/tmp/home" },
+    {
+      status: "",
+      failReason: "",
+      body: "",
+      title: "",
+    }
+  );
+  assert.equal(env.STATUS, undefined);
+  assert.equal(env.FAIL_REASON, undefined);
+  assert.equal(env.BODY, undefined);
+  assert.equal(env.TITLE, undefined);
+});
+
+test("buildNotifyEnv preserves special characters in body and title", () => {
+  const context: NotifyContext = {
+    body: 'Line 1\nLine 2\tindented "quoted"',
+    title: "Fix: login & signup (urgent)",
+  };
+  const env = buildNotifyEnv(1000, {}, context);
+  assert.equal(env.BODY, 'Line 1\nLine 2\tindented "quoted"');
+  assert.equal(env.TITLE, "Fix: login & signup (urgent)");
+});
+
+test(
+  "launchNotifyScript passes DURATION, context vars, and falls back to /bin/sh for non-executable scripts",
+  { skip: process.platform === "win32" },
+  () => {
+    const calls: Array<{
+      command: string;
+      args: string[];
+      options: { cwd?: string | URL; env?: NodeJS.ProcessEnv };
+    }> = [];
+
+    const spawnProcess: NotifySpawn = (command, args, options) => {
+      calls.push({ command, args, options: { cwd: options.cwd, env: options.env } });
+
+      return {
+        once(event, listener) {
+          if (event === "error" && calls.length === 1) {
+            listener({ code: "EACCES" } as NodeJS.ErrnoException);
+          }
+          return this;
+        },
+        unref() {
+          return undefined;
+        },
+      };
+    };
+
+    const context: NotifyContext = {
+      status: "completed",
+      body: "Task finished successfully.",
+      title: "Fix login bug",
+    };
+
+    launchNotifyScript("/tmp/notify.sh", 2750, "/tmp/project", spawnProcess, { WEBHOOK: "configured" }, context);
+
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0]?.command, "/tmp/notify.sh");
+    assert.deepEqual(calls[0]?.args, []);
+    assert.equal(calls[0]?.options.cwd, "/tmp/project");
+    assert.equal(calls[0]?.options.env?.DURATION, "2");
+    assert.equal(calls[0]?.options.env?.WEBHOOK, "configured");
+    assert.equal(calls[0]?.options.env?.STATUS, "completed");
+    assert.equal(calls[0]?.options.env?.FAIL_REASON, undefined);
+    assert.equal(calls[0]?.options.env?.BODY, "Task finished successfully.");
+    assert.equal(calls[0]?.options.env?.TITLE, "Fix login bug");
+    assert.equal(calls[1]?.command, "/bin/sh");
+    assert.deepEqual(calls[1]?.args, ["/tmp/notify.sh"]);
+    assert.equal(calls[1]?.options.cwd, "/tmp/project");
+    assert.equal(calls[1]?.options.env?.DURATION, "2");
+    assert.equal(calls[1]?.options.env?.STATUS, "completed");
+    assert.equal(calls[1]?.options.env?.BODY, "Task finished successfully.");
+    assert.equal(calls[1]?.options.env?.TITLE, "Fix login bug");
+  }
+);
