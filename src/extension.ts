@@ -24,6 +24,10 @@ import { setShellIfWindows } from "./common/shell-utils";
 const DEFAULT_MODEL = "deepseek-v4-pro";
 const DEFAULT_BASE_URL = "https://api.deepseek.com";
 
+type ReasoningMessageParams = {
+  reasoning_content?: string;
+};
+
 class DeepcodingViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = "deepcode.chatView";
 
@@ -52,7 +56,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         if (message.role !== "tool") {
-          const reasoningContent = (message.messageParams as any)?.reasoning_content;
+          const reasoningContent = (message.messageParams as ReasoningMessageParams | null)?.reasoning_content;
           message.html = this.md.render(message.content || reasoningContent || "");
         }
         this.webviewView.webview.postMessage({ type: "appendMessage", message, shouldConnect });
@@ -202,7 +206,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
           content: m.content,
           html:
             m.role !== "tool"
-              ? this.md.render(m.content || (m.messageParams as any)?.reasoning_content || "")
+              ? this.md.render(m.content || (m.messageParams as ReasoningMessageParams | null)?.reasoning_content || "")
               : undefined,
           meta: m.meta,
         })),
@@ -246,7 +250,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     await this.sendSkillsList();
   }
 
-  private sendMessage(message: any): void {
+  private sendMessage(message: unknown): void {
     if (!this.webviewView) {
       return;
     }
