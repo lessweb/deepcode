@@ -11,13 +11,13 @@ import {
   type LlmStreamProgress,
   type SessionEntry,
   type SkillInfo,
-  type UserPromptContent
+  type UserPromptContent,
 } from "./session";
 import {
   resolveSettingsSources,
   type DeepcodingSettings,
   type ReasoningEffort,
-  type ResolvedDeepcodingSettings
+  type ResolvedDeepcodingSettings,
 } from "./settings";
 import { setShellIfWindows } from "./common/shell-utils";
 
@@ -37,7 +37,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     this.md = new MarkdownIt({
       html: false,
       linkify: false,
-      breaks: true
+      breaks: true,
     });
     this.sessionManager = new SessionManager({
       projectRoot: this.getWorkspaceRoot(),
@@ -66,7 +66,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
           sessionId: entry.id,
           status: entry.status,
           processes: this.serializeProcesses(entry.processes),
-          tokenTelemetry: this.buildTokenTelemetry(entry)
+          tokenTelemetry: this.buildTokenTelemetry(entry),
         });
       },
       onLlmStreamProgress: (progress: LlmStreamProgress) => {
@@ -75,9 +75,9 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         }
         this.webviewView.webview.postMessage({
           type: "llmStreamProgress",
-          progress
+          progress,
         });
-      }
+      },
     });
     void this.initializeMcpServers();
   }
@@ -91,7 +91,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.options = {
       enableScripts: true,
-      localResourceRoots: [this.context.extensionUri]
+      localResourceRoots: [this.context.extensionUri],
     };
 
     webviewView.webview.html = this.getWebviewHtml(webviewView.webview);
@@ -108,9 +108,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       } else if (message?.type === "userPrompt") {
         const prompt = String(message.prompt || "").trim();
         const images = Array.isArray(message.images)
-          ? message.images.filter(
-              (image: unknown): image is string => typeof image === "string" && image.length > 0
-            )
+          ? message.images.filter((image: unknown): image is string => typeof image === "string" && image.length > 0)
           : [];
         if (!prompt && images.length === 0) {
           return;
@@ -148,7 +146,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       summary: s.summary || "Untitled",
       createTime: s.createTime,
       updateTime: s.updateTime,
-      status: s.status
+      status: s.status,
     }));
 
     if (sessions.length === 0) {
@@ -157,7 +155,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         type: "initializeEmpty",
         sessions: sessionsList,
         status: null,
-        tokenTelemetry: this.buildTokenTelemetry(null)
+        tokenTelemetry: this.buildTokenTelemetry(null),
       });
       return;
     }
@@ -185,7 +183,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       summary: s.summary || "Untitled",
       createTime: s.createTime,
       updateTime: s.updateTime,
-      status: s.status
+      status: s.status,
     }));
 
     // 发送对话信息到 webview
@@ -206,8 +204,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
             m.role !== "tool"
               ? this.md.render(m.content || (m.messageParams as any)?.reasoning_content || "")
               : undefined,
-          meta: m.meta
-        }))
+          meta: m.meta,
+        })),
     });
   }
 
@@ -220,8 +218,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         summary: s.summary || "Untitled",
         createTime: s.createTime,
         updateTime: s.updateTime,
-        status: s.status
-      }))
+        status: s.status,
+      })),
     });
   }
 
@@ -236,14 +234,14 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       summary: s.summary || "Untitled",
       createTime: s.createTime,
       updateTime: s.updateTime,
-      status: s.status
+      status: s.status,
     }));
 
     this.sendMessage({
       type: "initializeEmpty",
       sessions: sessionsList,
       status: null,
-      tokenTelemetry: this.buildTokenTelemetry(null)
+      tokenTelemetry: this.buildTokenTelemetry(null),
     });
     await this.sendSkillsList();
   }
@@ -265,11 +263,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     this.sendMessage({ type: "skillsList", skills });
   }
 
-  private async handlePrompt(
-    prompt: string,
-    skills?: SkillInfo[],
-    imageUrls?: string[]
-  ): Promise<void> {
+  private async handlePrompt(prompt: string, skills?: SkillInfo[], imageUrls?: string[]): Promise<void> {
     if (!this.webviewView) {
       return;
     }
@@ -289,16 +283,14 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       await this.sendSkillsList();
 
       const activeSessionId = this.sessionManager.getActiveSessionId();
-      const activeSession = activeSessionId
-        ? this.sessionManager.getSession(activeSessionId)
-        : null;
+      const activeSession = activeSessionId ? this.sessionManager.getSession(activeSessionId) : null;
       if (activeSessionId && activeSession) {
         webview.postMessage({
           type: "sessionStatus",
           sessionId: activeSessionId,
           status: activeSession.status,
           processes: this.serializeProcesses(activeSession.processes),
-          tokenTelemetry: this.buildTokenTelemetry(activeSession)
+          tokenTelemetry: this.buildTokenTelemetry(activeSession),
         });
       }
 
@@ -309,17 +301,17 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         summary: s.summary || "Untitled",
         createTime: s.createTime,
         updateTime: s.updateTime,
-        status: s.status
+        status: s.status,
       }));
       webview.postMessage({
         type: "showSessionsList",
-        sessions: sessionsList
+        sessions: sessionsList,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       webview.postMessage({
         type: "assistant",
-        html: this.md.render(`Request failed: ${message}`)
+        html: this.md.render(`Request failed: ${message}`),
       });
     } finally {
       webview.postMessage({ type: "loading", value: false });
@@ -340,17 +332,8 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
   } {
     const settings = this.resolveCurrentSettings();
 
-    const {
-      apiKey,
-      baseURL,
-      model,
-      thinkingEnabled,
-      reasoningEffort,
-      debugLogEnabled,
-      notify,
-      webSearchTool,
-      env
-    } = settings;
+    const { apiKey, baseURL, model, thinkingEnabled, reasoningEffort, debugLogEnabled, notify, webSearchTool, env } =
+      settings;
     const machineId = vscode.env.machineId;
 
     if (!apiKey) {
@@ -364,13 +347,13 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         notify,
         webSearchTool,
         env,
-        machineId
+        machineId,
       };
     }
 
     const client = new OpenAI({
       apiKey,
-      baseURL: baseURL || undefined
+      baseURL: baseURL || undefined,
     });
 
     return {
@@ -383,7 +366,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       notify,
       webSearchTool,
       env,
-      machineId
+      machineId,
     };
   }
 
@@ -402,7 +385,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       reasoningEffort: settings.reasoningEffort,
       activeTokens: session?.activeTokens ?? 0,
       compactPromptTokenThreshold: getCompactPromptTokenThreshold(settings.model),
-      usage: session?.usage ?? null
+      usage: session?.usage ?? null,
     };
   }
 
@@ -421,7 +404,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
       this.readProjectSettings(),
       {
         model: DEFAULT_MODEL,
-        baseURL: DEFAULT_BASE_URL
+        baseURL: DEFAULT_BASE_URL,
       },
       process.env
     );
@@ -495,19 +478,11 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     // 获取 CSS 文件 URI
     const cssPath = vscode.Uri.joinPath(this.context.extensionUri, "resources", "webview.css");
     const cssUri = webview.asWebviewUri(cssPath);
-    const attachmentsJsPath = vscode.Uri.joinPath(
-      this.context.extensionUri,
-      "resources",
-      "prompt-attachments.js"
-    );
+    const attachmentsJsPath = vscode.Uri.joinPath(this.context.extensionUri, "resources", "prompt-attachments.js");
     const attachmentsJsUri = webview.asWebviewUri(attachmentsJsPath);
 
     // 获取 Logo 文件 URI
-    const iconPath = vscode.Uri.joinPath(
-      this.context.extensionUri,
-      "resources",
-      "deepcoding_icon.png"
-    );
+    const iconPath = vscode.Uri.joinPath(this.context.extensionUri, "resources", "deepcoding_icon.png");
     const iconUri = webview.asWebviewUri(iconPath);
 
     // 替换占位符
@@ -525,7 +500,7 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
     const document = await vscode.workspace.openTextDocument(vscode.Uri.file(filePath));
     const editor = await vscode.window.showTextDocument(document, {
       preview: false,
-      preserveFocus: false
+      preserveFocus: false,
     });
 
     const targetLine = Number.isFinite(line) && line > 0 ? Math.floor(line) - 1 : 0;
@@ -548,9 +523,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const provider = new DeepcodingViewProvider(context);
   context.subscriptions.push(provider);
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(DeepcodingViewProvider.viewType, provider)
-  );
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider(DeepcodingViewProvider.viewType, provider));
   context.subscriptions.push(
     vscode.commands.registerCommand("deepcode.openView", async () => {
       await vscode.commands.executeCommand("workbench.view.extension.deepcode");
