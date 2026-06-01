@@ -27,13 +27,7 @@
           </div>
         </div>
         <button class="header-new-btn" id="newSessionBtn" title="New chat">
-          <svg
-            class="header-new-icon"
-            viewBox="0 0 1024 1024"
-            width="16"
-            height="16"
-            aria-hidden="true"
-          >
+          <svg class="header-new-icon" viewBox="0 0 1024 1024" width="16" height="16" aria-hidden="true">
             <path d="M474 152m8 0l60 0q8 0 8 8l0 704q0 8-8 8l-60 0q-8 0-8-8l0-704q0-8 8-8Z"></path>
             <path d="M168 474m8 0l672 0q8 0 8 8l0 60q0 8-8 8l-672 0q-8 0-8-8l0-60q0-8 8-8Z"></path>
           </svg>
@@ -1699,6 +1693,10 @@
         }
 
         if (event.key === "Enter") {
+          if (event.isComposing) {
+            // 输入法组合中（如中文输入法选字），不处理回车
+            return;
+          }
           if (event.shiftKey) {
             // Shift+回车：允许换行（默认行为）
             return;
