@@ -139,6 +139,11 @@ class DeepcodingViewProvider implements vscode.WebviewViewProvider {
         if (filePath) {
           await this.openFileInEditor(filePath, line);
         }
+      } else if (message?.type === "copyText") {
+        const text = String(message.text || "");
+        if (text) {
+          await vscode.env.clipboard.writeText(text);
+        }
       }
     });
   }
