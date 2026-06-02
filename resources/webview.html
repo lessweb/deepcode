@@ -628,7 +628,7 @@
         return false;
       }
 
-      function addBubble(content, role, meta, shouldConnectToPrev = false) {
+      function addBubble(content, role, meta, shouldConnectToPrev = false, copySource = "") {
 
         const bubble = document.createElement("div");
         bubble.className = "bubble " + role;
@@ -699,8 +699,10 @@
             `;
             copyBtn.addEventListener("click", (e) => {
               e.stopPropagation();
-              // 提取纯文本内容
-              const textContent = contentDiv.textContent || contentDiv.innerText || "";
+              const textContent =
+                typeof copySource === "string" && copySource.length > 0
+                  ? copySource
+                  : contentDiv.textContent || contentDiv.innerText || "";
               vscode.postMessage({
                 type: "copyText",
                 text: textContent
@@ -1804,7 +1806,7 @@
         } else if (msg.role === "user") {
           addBubble(msg.content, "user", msg.meta, false);
         } else if (msg.role === "assistant") {
-          addBubble(msg.html || msg.content, "assistant", msg.meta, shouldConnect);
+          addBubble(msg.html || msg.content, "assistant", msg.meta, shouldConnect, msg.content || "");
         } else if (msg.role === "tool") {
           addBubble(msg.content, "tool", msg.meta, shouldConnect);
         }
@@ -1959,7 +1961,7 @@
         } else if (message.type === "assistant") {
           // 接收助手回复
           const shouldConnect = lastMessageRole !== null && lastMessageRole !== "user";
-          addBubble(message.html || "", "assistant", message.meta, shouldConnect);
+          addBubble(message.html || message.content || "", "assistant", message.meta, shouldConnect, message.content || "");
         } else if (message.type === "loading") {
           // 加载状态
           const newStatus = message.value ? "processing" : currentSessionStatus;
