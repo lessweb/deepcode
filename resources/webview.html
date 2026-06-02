@@ -38,10 +38,6 @@
       <!-- 聊天视图 -->
       <div class="chat-container" id="chatContainer">
         <div class="messages" id="messages"></div>
-        <div class="loading" id="loading">
-          <div class="spinner"></div>
-          <span>Thinking...</span>
-        </div>
         <div class="composer">
           <!-- Skills Popup -->
           <div class="skills-popup" id="skillsPopup">
@@ -97,7 +93,6 @@
       const promptMinRows = Number(promptInput?.getAttribute("rows")) || 3;
       const promptMaxRows = 10;
       const sendButton = document.getElementById("send");
-      const loading = document.getElementById("loading");
       const sessionSelector = document.getElementById("sessionSelector");
       const sessionSelectorTitle = document.getElementById("sessionSelectorTitle");
       const sessionSelectorTitleText = document.getElementById("sessionSelectorTitleText");
@@ -1269,35 +1264,80 @@
         return `${seconds}s`;
       }
 
-      function updateLoadingText() {
-        const loadingSpan = loading.querySelector('span');
-        if (!loadingSpan) {
-          return;
-        }
+      let currentThinkingBubbleElement = null; // 当前 thinking 气泡 DOM 元素
+
+      function getThinkingContentText() {
         if (currentRunningProcesses && Object.keys(currentRunningProcesses).length > 0) {
-          // 显示第一个运行中的进程（通常只有一个进程在运行）
           const firstPid = Object.keys(currentRunningProcesses)[0];
           const process = currentRunningProcesses[firstPid];
           const elapsed = formatElapsedTime(process.startTime);
-          loadingSpan.textContent = `(${elapsed}) ${process.command}`;
-          return;
+          return `(${elapsed}) ${process.command}`;
         }
 
         if (currentLlmStreamProgress && currentLlmStreamProgress.startedAt) {
           const startedAt = new Date(currentLlmStreamProgress.startedAt).getTime();
           const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+          const formattedTokens = currentLlmStreamProgress.formattedTokens || "0";
           if (elapsedSeconds >= 3) {
-            const formattedTokens = currentLlmStreamProgress.formattedTokens || "0";
-            loadingSpan.textContent = `Thinking... (${elapsedSeconds}s) · ↓ ${formattedTokens} tokens`;
-            return;
+            return `(${elapsedSeconds}s) · ↓ ${formattedTokens} tokens`;
           }
         }
 
-        loadingSpan.textContent = 'Thinking...';
+        return "Processing...";
+      }
+
+      function updateThinkingBubbleContent() {
+        if (!currentThinkingBubbleElement) return;
+        const statusEl = currentThinkingBubbleElement.querySelector(".thinking-status");
+        if (statusEl) {
+          statusEl.textContent = getThinkingContentText();
+        }
+      }
+
+      function removeThinkingBubble() {
+        if (currentThinkingBubbleElement) {
+          currentThinkingBubbleElement.remove();
+          currentThinkingBubbleElement = null;
+        }
+      }
+
+      function createThinkingBubble(shouldConnectToPrev) {
+        removeThinkingBubble();
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble assistant";
+        bubble.dataset.thinkingLive = "true";
+
+        const header = document.createElement("div");
+        header.className = "bubble-collapsible-header";
+
+        const dotClass = shouldConnectToPrev ? "bubble-dot spinner-dot connect-to-prev" : "bubble-dot spinner-dot";
+        const statusText = getThinkingContentText();
+        header.innerHTML = `
+          <span class="${dotClass}"></span>
+          <span class="bubble-title">
+            <span class="bubble-title-text"><b>Thinking</b> <span class="thinking-status">${escapeHtml(statusText)}</span></span>
+          </span>
+        `;
+
+        bubble.appendChild(header);
+        messages.appendChild(bubble);
+        messages.scrollTop = messages.scrollHeight;
+
+        currentThinkingBubbleElement = bubble;
+
+        // 连接线
+        if (shouldConnectToPrev) {
+          requestAnimationFrame(() => {
+            updateConnectionLine(bubble);
+          });
+        }
+        requestAnimationFrame(() => {
+          updateAllConnectionLines();
+        });
       }
 
       function setLoading(isLoading, status) {
-        loading.classList.toggle("active", isLoading);
         if (status !== undefined) {
           currentSessionStatus = status;
         }
@@ -1312,11 +1352,13 @@
         }
 
         if (isLoading) {
-          loadingUpdateTimer = setInterval(updateLoadingText, 1000);
+          // 创建 thinking bubble，连到上一条非 user 消息
+          const shouldConnect = lastMessageRole !== null && lastMessageRole !== "user";
+          createThinkingBubble(shouldConnect);
+          loadingUpdateTimer = setInterval(updateThinkingBubbleContent, 1000);
+        } else {
+          removeThinkingBubble();
         }
-
-        // 更新初始文本
-        updateLoadingText();
 
         // 切换图标
         if (isLoading) {
@@ -1892,7 +1934,7 @@
           } else {
             currentLlmStreamProgress = progress;
           }
-          updateLoadingText();
+          updateThinkingBubbleContent();
         } else if (message.type === "userMessage") {
           // 显示用户消息（纯文本）
           addBubble(message.content || "", "user", message.meta, false);

@@ -905,28 +905,38 @@ body {
   color: var(--vscode-descriptionForeground);
 }
 
-/* Loading Indicator */
-.loading {
-  display: none;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 12px;
-  padding: 16px 10px;
-  flex-shrink: 0;
+/* Spinner dot for live thinking bubble */
+.bubble-dot.spinner-dot {
+  background: transparent !important;
 }
 
-.loading.active {
-  display: flex;
-}
-
-.spinner {
-  width: 14px;
-  height: 14px;
+/* 旋转环用 ::after 实现，不影响 ::before 连线 */
+.bubble-dot.spinner-dot::after {
+  content: "";
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: calc(100% + 4px);
+  height: calc(100% + 4px);
   border-radius: 50%;
   border: 2px solid var(--vscode-progressBar-background);
   border-top-color: var(--accent);
   animation: spin 0.8s linear infinite;
+  box-sizing: border-box;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Thinking bubble: 标题和内容同行显示 */
+.bubble[data-thinking-live="true"] .thinking-status {
+  color: var(--vscode-descriptionForeground);
+  font-weight: normal;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 @keyframes spin {
